@@ -1,0 +1,1 @@
+ALTER TABLE `entities` ADD `modules` text DEFAULT '[]' NOT NULL;

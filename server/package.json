@@ -1,0 +1,32 @@
+{
+  "name": "server",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tsx watch src/server.ts",
+    "start": "tsx src/server.ts",
+    "test": "vitest run",
+    "typecheck": "tsc --noEmit",
+    "db:generate": "drizzle-kit generate",
+    "backup": "tsx src/backup.ts"
+  },
+  "dependencies": {
+    "@fastify/cookie": "^11.1.5",
+    "@fastify/static": "^10.1.11",
+    "@node-rs/argon2": "^2.0.0",
+    "@trpc/server": "^11.28.3",
+    "better-sqlite3": "^13.2.0",
+    "drizzle-orm": "^0.45.4",
+    "fastify": "^5.12.8",
+    "nanoid": "^5.0.0",
+    "tsx": "^4.19.0",
+    "zod": "^4.6.7"
+  },
+  "devDependencies": {
+    "@types/better-sqlite3": "^7.6.0",
+    "@types/node": "^22.0.0",
+    "drizzle-kit": "^0.31.11",
+    "typescript": "^5.7.0",
+    "vitest": "^5.1.0"
+  }
+}

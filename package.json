@@ -1,0 +1,21 @@
+{
+  "name": "anybrew",
+  "private": true,
+  "type": "module",
+  "workspaces": [
+    "server",
+    "web"
+  ],
+  "scripts": {
+    "dev": "concurrently -n server,web -c blue,green \"npm run dev -w server\" \"npm run dev -w web\"",
+    "test": "npm test -w server",
+    "test:browser": "playwright test",
+    "build": "npm run build -w web",
+    "start": "npm run start -w server",
+    "backup": "npm run backup -w server"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.65.1",
+    "concurrently": "^9.1.0"
+  }
+}
