@@ -8,7 +8,9 @@
     "test": "vitest run",
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
-    "backup": "tsx src/backup.ts"
+    "backup": "tsx src/backup.ts",
+    "import:chronica": "tsx src/import/chronica.ts",
+    "convert:feature-types": "tsx src/import/feature-types.ts"
   },
   "dependencies": {
     "@fastify/cookie": "^11.1.5",
@@ -19,12 +21,14 @@
     "drizzle-orm": "^0.45.4",
     "fastify": "^5.12.8",
     "nanoid": "^5.0.0",
+    "sanitize-html": "^2.18.2",
     "tsx": "^4.19.0",
     "zod": "^4.6.7"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.0",
     "@types/node": "^22.0.0",
+    "@types/sanitize-html": "^2.16.2",
     "drizzle-kit": "^0.31.11",
     "typescript": "^5.7.0",
     "vitest": "^5.1.0"

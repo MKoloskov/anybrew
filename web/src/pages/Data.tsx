@@ -43,7 +43,7 @@ export function DataTab({ system }: { system: System }) {
   return (
     <div className="grid gap-4 p-4 lg:grid-cols-2">
       <section className="card p-4">
-        <h2 className="mb-1 font-semibold">Export</h2>
+        <h2 className="display mb-1 text-lg">Export</h2>
         <p className="muted mb-3">
           Downloads the whole system as one JSON file: members, campaigns, parties, every note with its hidden parts, links and the full
           change history. Keep it private.
@@ -54,7 +54,7 @@ export function DataTab({ system }: { system: System }) {
       </section>
 
       <section className="card p-4">
-        <h2 className="mb-1 font-semibold">Import</h2>
+        <h2 className="display mb-1 text-lg">Import</h2>
         <p className="muted mb-3">Creates a new system from an export file. The current system is not changed.</p>
         <input
           ref={fileInput}
@@ -74,9 +74,9 @@ export function DataTab({ system }: { system: System }) {
       </section>
 
       <section className="card p-4 lg:col-span-2">
-        <h2 className="mb-1 font-semibold">Deleted items</h2>
+        <h2 className="display mb-1 text-lg">Deleted items</h2>
         {deleted.data?.length === 0 && <p className="muted">Nothing deleted.</p>}
-        <ul className="divide-y divide-stone-200 text-sm dark:divide-stone-800">
+        <ul className="divide-y divide-line text-sm">
           {deleted.data?.map((e) => (
             <li key={e.id} className="flex items-center justify-between gap-2 py-2">
               <span>

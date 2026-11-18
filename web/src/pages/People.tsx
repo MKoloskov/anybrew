@@ -26,17 +26,17 @@ function Members({ system, userId }: { system: System; userId: string }) {
   });
   return (
     <section className="card p-4">
-      <h2 className="mb-3 font-semibold">Members</h2>
-      <ul className="divide-y divide-stone-200 dark:divide-stone-800">
+      <h2 className="display mb-3 text-lg">Members</h2>
+      <ul className="divide-y divide-line">
         {system.members.map((m) => {
           const inCampaigns = system.campaigns.filter((c) => c.memberIds.includes(m.userId)).map((c) => c.name);
           return (
             <li key={m.userId} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
               <div>
                 <span className="font-medium">{m.displayName}</span> <span className="muted">· {m.role === 'dm' ? 'DM' : 'player'}</span>
-                {m.username && <div className="text-xs text-stone-500">login: {m.username}</div>}
+                {m.username && <div className="text-xs text-muted">login: {m.username}</div>}
                 {m.role === 'player' && (
-                  <div className="text-xs text-stone-500">{inCampaigns.length ? inCampaigns.join(', ') : 'in no campaign'}</div>
+                  <div className="text-xs text-muted">{inCampaigns.length ? inCampaigns.join(', ') : 'in no campaign'}</div>
                 )}
               </div>
               {isDm && m.role === 'player' && (
@@ -77,7 +77,7 @@ function Campaigns({ system }: { system: System }) {
   const [name, setName] = useState('');
   return (
     <section className="card p-4">
-      <h2 className="mb-1 font-semibold">Campaigns</h2>
+      <h2 className="display mb-1 text-lg">Campaigns</h2>
       <p className="muted mb-3">
         {isDm
           ? 'A campaign is a group of players. Whatever is filed under a campaign is closed to players of other campaigns. Rules, items and spells stay outside campaigns.'
@@ -118,7 +118,7 @@ function CampaignCard({ system, campaign }: { system: System; campaign: Campaign
   const parties = system.parties.filter((p) => p.campaignId === campaign.id);
 
   return (
-    <div className="mb-3 rounded-md border border-stone-200 p-3 text-sm dark:border-stone-800">
+    <div className="mb-3 rounded-md border border-line p-3 text-sm">
       <div className="mb-2 flex items-center justify-between gap-2">
         <span className="font-semibold">{campaign.name}</span>
         {isDm && (
@@ -201,7 +201,7 @@ function PartyRow({ system, party, candidates }: { system: System; party: Party;
   const update = trpc.system.updateParty.useMutation({ onSuccess: refresh });
   const remove = trpc.system.deleteParty.useMutation({ onSuccess: refresh });
   return (
-    <div className="mb-2 rounded-md bg-stone-100 p-2 dark:bg-stone-900">
+    <div className="mb-2 rounded-md bg-surface-2 p-2">
       <div className="mb-1 flex items-center justify-between gap-2">
         <span className="font-medium">{party.name}</span>
         {isDm && (
@@ -268,7 +268,7 @@ function Invites({ system }: { system: System }) {
   const campaignName = (id: string | null) => system.campaigns.find((c) => c.id === id)?.name;
   return (
     <section className="card p-4 lg:col-span-2">
-      <h2 className="mb-1 font-semibold">Invite links</h2>
+      <h2 className="display mb-1 text-lg">Invite links</h2>
       <p className="muted mb-3">
         Each link works once and for 14 days. Send it to the person; they choose their own name and password. Someone who
         already has an account can open a link to join another campaign.
@@ -297,7 +297,7 @@ function Invites({ system }: { system: System }) {
       <ul className="space-y-2 text-sm">
         {invites.data?.map((i) => (
           <li key={i.token} className="flex flex-wrap items-center gap-2">
-            <span className="w-32 truncate text-xs font-medium uppercase text-stone-500">
+            <span className="w-32 truncate text-xs font-medium uppercase text-muted">
               {i.role === 'dm' ? 'Co-DM' : `Player${i.campaignId ? ` · ${campaignName(i.campaignId) ?? ''}` : ''}`}
             </span>
             <input className="input min-w-0 flex-1 font-mono text-xs" readOnly value={url(i.token)} onFocus={(e) => e.target.select()} />

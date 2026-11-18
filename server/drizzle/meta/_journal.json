@@ -15,6 +15,20 @@
       "when": 1794802461114,
       "tag": "0001_smiling_the_fallen",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "6",
+      "when": 1794804650090,
+      "tag": "0002_spooky_chameleon",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "6",
+      "when": 1794980343971,
+      "tag": "0003_amusing_power_man",
+      "breakpoints": true
     }
   ]
 }

@@ -9,7 +9,7 @@ function Shell({ title, children }: { title: string; children: React.ReactNode }
   return (
     <div className="flex min-h-dvh items-center justify-center p-4">
       <div className="card w-full max-w-sm p-6">
-        <h1 className="mb-4 text-xl font-semibold">{title}</h1>
+        <h1 className="display mb-4 text-2xl">{title}</h1>
         {children}
       </div>
     </div>
@@ -27,7 +27,7 @@ function Field(props: { label: string; value: string; onChange: (v: string) => v
         autoFocus={props.autoFocus}
         onChange={(e) => props.onChange(e.target.value)}
       />
-      {props.hint && <span className="mt-1 block text-xs text-stone-500">{props.hint}</span>}
+      {props.hint && <span className="mt-1 block text-xs text-muted">{props.hint}</span>}
     </label>
   );
 }

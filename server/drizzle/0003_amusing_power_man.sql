@@ -1,0 +1,1 @@
+ALTER TABLE `systems` ADD `settings` text DEFAULT '{}' NOT NULL;

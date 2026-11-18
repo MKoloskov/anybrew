@@ -1,32 +1,101 @@
 @import 'tailwindcss';
+/* Fonts, served from our own server (no request goes to Google).
+   Marcellus SC has no Russian letters: Spectral SC is loaded for Cyrillic only and fills them in. */
+@import '@fontsource-variable/source-sans-3/wght.css';
+@import '@fontsource-variable/source-sans-3/wght-italic.css';
+@import '@fontsource/marcellus-sc/400.css';
+@import '@fontsource/spectral-sc/cyrillic-500.css';
+
+/* dark: styles follow the mode chosen in the header (data-theme on <html>, set in index.html), not only the device setting. */
+@custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
+
+/* Slate & Brass colours (PLAN.md section 11.2). Components name these, never raw colours, so each names a colour once. */
+:root {
+  --c-bg: #eff1f4;
+  --c-surface: #ffffff;
+  --c-surface-2: #e7eaef;
+  --c-line: #cfd4dc;
+  --c-fg: #1f2430;
+  --c-muted: #5b6273;
+  --c-accent: #96681f;
+  --c-accent-ink: #ffffff;
+  --c-bar: #1f2430;
+  --c-bar-fg: #e6e8ee;
+  --c-secret: rgb(150 104 31 / 0.06);
+}
+[data-theme='dark'] {
+  --c-bg: #161920;
+  --c-surface: #1e222b;
+  --c-surface-2: #262b36;
+  --c-line: #363c4a;
+  --c-fg: #e6e8ee;
+  --c-muted: #949bab;
+  --c-accent: #d4a656;
+  --c-accent-ink: #1a1408;
+  --c-bar: #0f1116;
+  --c-bar-fg: #e6e8ee;
+  --c-secret: rgb(212 166 86 / 0.07);
+}
+
+@theme inline {
+  --color-bg: var(--c-bg);
+  --color-surface: var(--c-surface);
+  --color-surface-2: var(--c-surface-2);
+  --color-line: var(--c-line);
+  --color-fg: var(--c-fg);
+  --color-muted: var(--c-muted);
+  --color-accent: var(--c-accent);
+  --color-accent-ink: var(--c-accent-ink);
+  --color-bar: var(--c-bar);
+  --color-bar-fg: var(--c-bar-fg);
+  --color-secret: var(--c-secret);
+  --font-sans: 'Source Sans 3 Variable', 'Source Sans 3', system-ui, sans-serif;
+  /* Smaller corners: 3 px for buttons and inputs, 4 px for cards and groups. */
+  --radius-md: 3px;
+  --radius-lg: 4px;
+  --font-display: 'Marcellus SC', 'Spectral SC', Georgia, serif;
+}
 
 @layer base {
   body {
-    @apply bg-stone-100 text-stone-900 antialiased dark:bg-stone-950 dark:text-stone-100;
+    @apply bg-bg font-sans text-fg antialiased;
   }
 }
 
 @layer components {
   .btn {
-    @apply inline-flex cursor-pointer items-center justify-center gap-1 rounded-md border border-stone-300 bg-white px-3 py-1.5 text-sm font-medium hover:bg-stone-50 disabled:cursor-default disabled:opacity-50 dark:border-stone-700 dark:bg-stone-900 dark:hover:bg-stone-800;
+    @apply inline-flex cursor-pointer items-center justify-center gap-1 rounded-[3px] border border-line bg-surface px-3 py-1.5 text-sm font-medium hover:bg-surface-2 disabled:cursor-default disabled:opacity-50;
   }
   .btn-primary {
-    @apply border-sky-700 bg-sky-700 text-white hover:bg-sky-600 dark:border-sky-600 dark:bg-sky-700 dark:hover:bg-sky-600;
+    @apply border-accent bg-accent text-accent-ink hover:bg-accent/90;
   }
   .btn-danger {
     @apply border-red-300 text-red-700 hover:bg-red-50 dark:border-red-900 dark:text-red-400 dark:hover:bg-red-950;
   }
   .input {
-    @apply w-full rounded-md border border-stone-300 bg-white px-2.5 py-1.5 text-sm outline-none focus:border-sky-600 focus:ring-1 focus:ring-sky-600 disabled:bg-stone-100 disabled:text-stone-500 dark:border-stone-700 dark:bg-stone-900 dark:disabled:bg-stone-800;
+    @apply w-full rounded-[3px] border border-line bg-surface px-2.5 py-1.5 text-sm outline-none focus:border-accent focus:ring-1 focus:ring-accent disabled:bg-surface-2 disabled:text-muted;
   }
   .card {
-    @apply rounded-lg border border-stone-200 bg-white dark:border-stone-800 dark:bg-stone-900;
+    @apply rounded-[4px] border border-line bg-surface;
   }
   .label {
-    @apply mb-1 block text-xs font-medium text-stone-600 dark:text-stone-400;
+    @apply mb-1 block text-xs font-medium text-muted;
   }
   .muted {
-    @apply text-sm text-stone-500 dark:text-stone-400;
+    @apply text-sm text-muted;
+  }
+  /* Engraved capitals for names and titles; never in tables or long text. It has one weight only. */
+  .display {
+    @apply font-display font-normal tracking-wide;
+  }
+
+  /* The top bar is dark slate in both modes; its controls sit on the dark. */
+  .bar .input,
+  .bar .btn {
+    @apply border-white/20 bg-transparent text-bar-fg hover:bg-white/10;
+  }
+  .bar option {
+    @apply bg-surface text-fg;
   }
 }
 
@@ -43,4 +112,53 @@
 .sheet-row output {
   padding-top: 0.2rem;
   padding-bottom: 0.2rem;
+}
+
+/* Formatted text, in the editor and when shown. Tailwind removes the browser's own styles for these. */
+.rich {
+  font-size: 0.875rem;
+  line-height: 1.55;
+}
+.rich > * + * {
+  margin-top: 0.5em;
+}
+.rich h1,
+.rich h2 {
+  font-size: 1.15rem;
+  font-weight: 700;
+}
+.rich h3,
+.rich h4 {
+  font-size: 1rem;
+  font-weight: 700;
+}
+.rich ul {
+  list-style: disc;
+  padding-left: 1.4em;
+}
+.rich ol {
+  list-style: decimal;
+  padding-left: 1.4em;
+}
+.rich blockquote {
+  border-left: 3px solid var(--c-line);
+  padding-left: 0.75em;
+  color: var(--c-muted);
+}
+.rich a {
+  color: var(--c-accent);
+  text-decoration: underline;
+}
+.rich table {
+  border-collapse: collapse;
+}
+.rich th,
+.rich td {
+  border: 1px solid var(--c-line);
+  padding: 0.2em 0.5em;
+  vertical-align: top;
+  text-align: left;
+}
+.rich th {
+  font-weight: 700;
 }

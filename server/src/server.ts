@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { SESSION_MAX_AGE_SECONDS, userFromToken } from './auth';
 import { openDb } from './db';
+import { registerFileRoutes } from './files';
 import { appRouter, type AppRouter } from './router';
 import type { Ctx } from './trpc';
 
@@ -54,12 +55,14 @@ await app.register(fastifyTRPCPlugin, {
   } satisfies FastifyTRPCPluginOptions<AppRouter>['trpcOptions'],
 });
 
+registerFileRoutes(app, db, COOKIE, path.join(path.dirname(DB_FILE), 'uploads'));
+
 // In production the built web app is served by this same process.
 const webDist = path.resolve(import.meta.dirname, '../../web/dist');
 if (fs.existsSync(webDist)) {
   await app.register(fastifyStatic, { root: webDist });
   app.setNotFoundHandler((req, reply) => {
-    if (req.url.startsWith('/trpc')) return reply.code(404).send({ error: 'Not found' });
+    if (req.url.startsWith('/trpc') || req.url.startsWith('/api')) return reply.code(404).send({ error: 'Not found' });
     return reply.sendFile('index.html');
   });
 }

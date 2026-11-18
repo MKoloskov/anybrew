@@ -2,7 +2,7 @@ import { userFromToken } from '../src/auth';
 import { openDb, type DB } from '../src/db';
 import { appRouter } from '../src/router';
 
-export type Client = ReturnType<typeof appRouter.createCaller> & { userId: () => string };
+export type Client = ReturnType<typeof appRouter.createCaller> & { userId: () => string; token: () => string };
 
 /** A caller that keeps its own session cookie, like one browser. */
 export function client(db: DB): Client {
@@ -15,10 +15,10 @@ export function client(db: DB): Client {
       session.token = next;
     },
   }));
-  // The caller is a proxy that treats every property as a procedure path, so userId is answered in front of it.
+  // The caller is a proxy that treats every property as a procedure path, so userId and token are answered in front of it.
   const userId = () => userFromToken(db, session.token ?? undefined)!.id;
   return new Proxy(caller, {
-    get: (target, prop, receiver) => (prop === 'userId' ? userId : Reflect.get(target, prop, receiver)),
+    get: (target, prop, receiver) => (prop === 'userId' ? userId : prop === 'token' ? () => session.token! : Reflect.get(target, prop, receiver)),
   }) as Client;
 }
 

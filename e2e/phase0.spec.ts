@@ -97,7 +97,9 @@ test('DM sets up, invites a player, and the player never sees DM-only content', 
   // ---- Player: sees the public part only ----
   await player.reload();
   await player.getByRole('link', { name: /The Devil Contract/ }).click();
-  await expect(player.locator('input[value="Signed in blood"]')).toBeVisible();
+  // A page opens for reading: values are text, and a player without rights has no Edit button.
+  await expect(player.getByText('Signed in blood')).toBeVisible();
+  await expect(player.getByRole('button', { name: 'Edit', exact: true })).toHaveCount(0);
   await expect(player.getByText('DM notes')).toHaveCount(0);
   await expect(player.getByText('Secrets')).toHaveCount(0);
   expect(await player.content()).not.toContain('The patron is lying');

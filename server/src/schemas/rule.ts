@@ -1,4 +1,5 @@
-import type { EntitySchema } from './types';
+import { CLASS_MODULE } from '../classes';
+import type { EntitySchema, SheetModule } from './types';
 
 // A rules document: text plus an optional table. Rules are campaign-agnostic content of the system.
 // A table with a formula name can feed sheets: lookup('proficiency_bonus', level) reads the
@@ -8,13 +9,14 @@ export const rule: EntitySchema = {
   name: 'Rule',
   plural: 'Rules',
   playerCreatable: false,
+  openByDefault: true,
   groups: [
     {
       kind: 'group',
       id: 'rule',
       label: 'Rule',
       children: [
-        { kind: 'field', id: 'body', label: 'Text', type: 'longtext' },
+        { kind: 'field', id: 'body', label: 'Text', type: 'richtext' },
         { kind: 'field', id: 'table', label: 'Table', type: 'table' },
       ],
     },
@@ -29,6 +31,36 @@ export const rule: EntitySchema = {
     },
   ],
 };
+
+/**
+ * Attached to a rules document, this section makes it a class that characters can take.
+ * The document's Table is then the class table (first column: level), and its features are the
+ * features of the library whose Class is the document's name.
+ */
+export const ruleModules: SheetModule[] = [
+  {
+    key: CLASS_MODULE,
+    name: 'Class (characters can take it)',
+    forType: 'rule',
+    groups: [
+      {
+        kind: 'group',
+        id: 'class',
+        label: 'Class',
+        children: [
+          { kind: 'field', id: 'hit_die', label: 'Hit die (sides)', type: 'number' },
+          { kind: 'field', id: 'class_saves', label: 'Saving throw proficiencies', type: 'text' },
+          { kind: 'field', id: 'class_armor', label: 'Armor proficiencies', type: 'text' },
+          { kind: 'field', id: 'class_weapons', label: 'Weapon proficiencies', type: 'text' },
+          { kind: 'field', id: 'class_tools', label: 'Tool proficiencies', type: 'text' },
+          { kind: 'field', id: 'class_skills', label: 'Skills', type: 'longtext' },
+          { kind: 'field', id: 'subclass_title', label: 'Subclasses are called', type: 'text' },
+          { kind: 'field', id: 'subclasses', label: 'Subclasses', type: 'list' },
+        ],
+      },
+    ],
+  },
+];
 
 /** The D&D 5e (2014) proficiency bonus by character level. */
 export const PROFICIENCY_BONUS_2014 = {

@@ -4,6 +4,32 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>AnyBrew Campaign Manager</title>
+    <script>
+      // Light / dark mode, set before the app loads so the page never flashes the wrong colours.
+      // The choice (system, light, dark) is kept per device; "system" follows the device setting, also when it changes.
+      // src/theme.ts writes the choice and calls window.__applyTheme.
+      (function () {
+        var media = window.matchMedia('(prefers-color-scheme: dark)');
+        function choice() {
+          try {
+            var c = localStorage.getItem('anybrew-theme');
+            return c === 'light' || c === 'dark' ? c : 'system';
+          } catch (e) {
+            return 'system';
+          }
+        }
+        function apply() {
+          var c = choice();
+          var mode = c === 'system' ? (media.matches ? 'dark' : 'light') : c;
+          var root = document.documentElement;
+          root.setAttribute('data-theme', mode);
+          root.style.colorScheme = mode;
+        }
+        window.__applyTheme = apply;
+        apply();
+        media.addEventListener('change', apply);
+      })();
+    </script>
   </head>
   <body>
     <div id="root"></div>

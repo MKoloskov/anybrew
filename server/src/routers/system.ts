@@ -15,9 +15,12 @@ import {
   parties,
   partyMembers,
   systems,
+  translations,
   users,
 } from '../db/schema';
+import { CARD_FIELDS } from '../schemas/character';
 import { authedProcedure, requireDm, router, viewerFor } from '../trpc';
+import { cardFieldsOf } from './entity';
 
 const INVITE_DAYS = 14;
 const EXPORT_FORMAT = 'anybrew-cm-export';
@@ -97,8 +100,22 @@ export const systemRouter = router({
         })),
       campaigns: campaignList,
       parties: partyList,
+      // What the DM chose to show on the cards of the character list, and what there is to choose from.
+      cardFields: cardFieldsOf(ctx.db, input.systemId),
+      cardFieldOptions: CARD_FIELDS.map((f) => ({ key: f.key, label: f.label })),
     };
   }),
+
+  /** The fields shown on every character card, beyond portrait, name and allegiance. One choice for everyone. */
+  setCardFields: authedProcedure
+    .input(z.object({ systemId, fields: z.array(z.enum(CARD_FIELDS.map((f) => f.key))) }))
+    .mutation(({ ctx, input }) => {
+      requireDm(viewerFor(ctx.db, ctx.user.id, input.systemId));
+      const system = ctx.db.select().from(systems).where(eq(systems.id, input.systemId)).get()!;
+      const cardFields = CARD_FIELDS.map((f) => f.key).filter((key) => input.fields.includes(key));
+      ctx.db.update(systems).set({ settings: { ...system.settings, cardFields } }).where(eq(systems.id, system.id)).run();
+      return { ok: true };
+    }),
 
   rename: authedProcedure.input(z.object({ systemId, name: systemName })).mutation(({ ctx, input }) => {
     requireDm(viewerFor(ctx.db, ctx.user.id, input.systemId));
@@ -353,7 +370,8 @@ const exportSchema = z.object({
   format: z.literal(EXPORT_FORMAT),
   version: z.literal(EXPORT_VERSION),
   exportedAt: z.string(),
-  system: z.object({ id: z.string(), name: z.string(), createdAt: z.number() }),
+  // Settings arrived after the first exports were made, so a file without them still imports.
+  system: z.object({ id: z.string(), name: z.string(), createdAt: z.number(), settings: z.object({ cardFields: z.array(z.string()).optional() }).default({}) }),
   members: z.array(z.object({ userId: z.string(), username: z.string(), displayName: z.string(), role: z.enum(['dm', 'player']) })),
   campaigns: z.array(z.object({ id: z.string(), name: z.string(), memberIds: z.array(z.string()) })),
   parties: z.array(z.object({ id: z.string(), campaignId: z.string(), name: z.string(), memberIds: z.array(z.string()) })),
@@ -365,6 +383,8 @@ const exportSchema = z.object({
       ownerId: z.string().nullable(),
       campaignIds: z.array(z.string()),
       modules: z.array(z.string()).default([]),
+      nameRu: z.string().nullable().default(null),
+      customSchema: z.array(z.any()).default([]),
       visibility: audience,
       fieldVisibility: z.record(z.string(), audience),
       values: z.record(z.string(), z.unknown()),
@@ -383,6 +403,19 @@ const exportSchema = z.object({
       createdAt: z.number(),
     }),
   ),
+  translations: z
+    .array(
+      z.object({
+        entityId: z.string(),
+        fieldId: z.string(),
+        lang: z.enum(['en', 'ru']),
+        text: z.string(),
+        sourceSnapshot: z.string(),
+        updatedBy: z.string(),
+        updatedAt: z.number(),
+      }),
+    )
+    .default([]),
   changes: z.array(
     z.object({
       entityId: z.string(),
@@ -401,6 +434,7 @@ export type SystemExport = z.infer<typeof exportSchema>;
 export function buildExport(db: DB, id: string): SystemExport {
   const system = db.select().from(systems).where(eq(systems.id, id)).get()!;
   const strip = <T extends { systemId: string }>({ systemId: _c, ...rest }: T) => rest;
+  const entityRows = db.select().from(entities).where(eq(entities.systemId, id)).all();
   return {
     format: EXPORT_FORMAT,
     version: EXPORT_VERSION,
@@ -414,8 +448,11 @@ export function buildExport(db: DB, id: string): SystemExport {
       .all(),
     campaigns: loadCampaigns(db, id),
     parties: loadParties(db, id),
-    entities: db.select().from(entities).where(eq(entities.systemId, id)).all().map(strip),
+    entities: entityRows.map(strip),
     links: db.select().from(links).where(eq(links.systemId, id)).all().map(strip),
+    translations: entityRows.length
+      ? db.select().from(translations).where(inArray(translations.entityId, entityRows.map((e) => e.id))).all()
+      : [],
     changes: db
       .select()
       .from(changes)
@@ -448,7 +485,12 @@ export function importSystem(db: DB, source: SystemExport, importerId: string): 
     const knownUsers = new Set(tx.select({ id: users.id }).from(users).all().map((u) => u.id));
     const nameTaken = tx.select({ id: systems.id }).from(systems).where(eq(systems.name, data.system.name)).get();
     tx.insert(systems)
-      .values({ id: newSystemId, name: nameTaken ? `${data.system.name} (imported)` : data.system.name, createdAt: Date.now() })
+      .values({
+        id: newSystemId,
+        name: nameTaken ? `${data.system.name} (imported)` : data.system.name,
+        settings: { cardFields: data.system.settings.cardFields ?? [] },
+        createdAt: Date.now(),
+      })
       .run();
 
     tx.insert(members).values({ systemId: newSystemId, userId: importerId, role: 'dm' }).run();
@@ -471,6 +513,7 @@ export function importSystem(db: DB, source: SystemExport, importerId: string): 
         .values({ ...e, systemId: newSystemId, ownerId: e.ownerId && knownUsers.has(e.ownerId) ? e.ownerId : null })
         .run();
     for (const l of data.links) tx.insert(links).values({ ...l, systemId: newSystemId }).run();
+    for (const t of data.translations) tx.insert(translations).values(t).run();
     for (const c of data.changes)
       tx.insert(changes)
         .values({ ...c, target: c.target as (typeof changes.$inferInsert)['target'], systemId: newSystemId })

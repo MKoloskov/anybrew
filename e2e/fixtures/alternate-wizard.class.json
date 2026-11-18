@@ -1,0 +1,30 @@
+{
+  "anybrew": "class",
+  "name": "Alternate Wizard",
+  "nameRu": "Альтернативный волшебник",
+  "body": "<h2>Alternate Wizard</h2><p>A test class used by the browser tests. It is not a real handbook.</p>",
+  "hitDie": 6,
+  "saves": ["int", "wis"],
+  "armor": "None",
+  "weapons": "Daggers, darts, slings, quarterstaffs, light crossbows",
+  "tools": "",
+  "skills": "Choose two from Arcana, History, Insight, Investigation, Medicine and Religion",
+  "subclassTitle": "Arcane Tradition",
+  "subclasses": ["Evoker", "Diviner"],
+  "table": {
+    "columns": ["Level", "Features", "Cantrips Known", "1st-circle slots"],
+    "rows": [
+      ["1", "Spellcasting, Arcane Recovery", "3", "2"],
+      ["2", "Arcane Tradition", "3", "3"],
+      ["3", "-", "3", "4"],
+      ["4", "Ability Score Improvement", "4", "4"]
+    ]
+  },
+  "features": [
+    { "name": "Spellcasting", "level": 1, "summary": "You cast wizard spells.", "description": "<p>As a student of arcane magic, you have a spellbook.</p>" },
+    { "name": "Arcane Recovery", "level": 1, "description": "<p>Once per day you regain some of your magical energy.</p>" },
+    { "name": "Sculpt Spells", "level": 2, "subclass": "Evoker", "description": "<p>You create pockets of relative safety within your evocations.</p>" },
+    { "name": "Portent", "level": 2, "subclass": "Diviner", "description": "<p>Glimpses of the future begin to press in on your awareness.</p>" },
+    { "name": "Ability Score Improvement", "level": 4, "description": "<p>Increase one ability score by 2, or two by 1.</p>" }
+  ]
+}

@@ -77,8 +77,12 @@ describe('rules tables feed the sheets', () => {
     await dm.entity.setField({ id: ruleId, fieldId: 'table', value: { columns: ['Level', 'Bonus'], rows: [['1', '1'], ['10', '7']] } });
     expect(await pb()).toBe(7);
 
-    // The rules document itself is DM-only here, and players cannot create or edit rules.
+    // Rules are open to players to read, but only the DM creates or edits them; a hidden rule still feeds the sheets.
+    expect(await code(alice.entity.get({ id: ruleId }))).toBe('OK');
+    expect(await code(alice.entity.setField({ id: ruleId, fieldId: 'body', value: 'x' }))).toBe('FORBIDDEN');
+    await dm.entity.setVisibility({ id: ruleId, audience: { all: false, players: [], parties: [] } });
     expect(await code(alice.entity.get({ id: ruleId }))).toBe('NOT_FOUND');
+    expect(await pb()).toBe(7);
     expect(await code(alice.entity.create({ systemId, typeKey: 'rule', name: 'x' }))).toBe('FORBIDDEN');
     expect(await code(dm.entity.setField({ id: ruleId, fieldId: 'table', value: { columns: ['a'], rows: [['1', '2']] } }))).toBe('BAD_REQUEST');
   });
