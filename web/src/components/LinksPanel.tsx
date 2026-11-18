@@ -3,7 +3,8 @@ import { Link } from 'wouter';
 import { featureHeading, featurePart, type SheetPart } from '../features';
 import { useBilingual } from '../lang';
 import { tabOfType } from '../tabs';
-import { trpc, type Out } from '../trpc';
+import { trpc, type Out, type System } from '../trpc';
+import { entityMark, VisChip } from './Visibility';
 
 type LinkRow = Out['entity']['links'][number];
 
@@ -16,6 +17,7 @@ const LINKABLE = [
 const CIRCLE = (n: number) => (n === 0 ? 'Cantrips' : `Circle ${n}`);
 
 type Props = {
+  system: System;
   entityId: string;
   systemId: string;
   typeKey: string;
@@ -38,7 +40,7 @@ const PART_SECTION: Record<SheetPart, { typeKey: string; title: string }> = {
  * On a character: its features, spells and items, each opening its own page.
  * On a feature, spell or item: the characters that have it.
  */
-export function LinksPanel({ entityId, systemId, typeKey, canEdit, canAddHolders, part }: Props) {
+export function LinksPanel({ system, entityId, systemId, typeKey, canEdit, canAddHolders, part }: Props) {
   const utils = trpc.useUtils();
   const links = trpc.entity.links.useQuery({ id: entityId }, { refetchInterval: 10_000 });
   const refresh = () => {
@@ -62,8 +64,10 @@ export function LinksPanel({ entityId, systemId, typeKey, canEdit, canAddHolders
     const tab = tabOfType(l.other.typeKey);
     const quantity = typeof l.data.quantity === 'number' && l.data.quantity !== 1 ? ` × ${l.data.quantity}` : '';
     const note = typeof l.data.note === 'string' && l.data.note ? ` · ${l.data.note}` : '';
+    // Only the DM receives who can see the other end; an entry players cannot see is tinted, with its chip.
+    const secret = l.other.seenBy ? entityMark(system, l.other.seenBy) : null;
     return (
-      <li key={l.id} className="flex items-baseline justify-between gap-2" data-link={l.other.name}>
+      <li key={l.id} className={`flex items-baseline justify-between gap-2 ${secret ? 'secret-row -mx-1 rounded-md px-1' : ''}`} data-link={l.other.name}>
         <span>
           {l.other.info.tier !== null && <span className="mr-1 text-xs text-muted">[{l.other.info.tier}]</span>}
           <Link href={`/s/${systemId}/${tab?.key ?? 'notes'}/${l.other.id}`} className="text-accent underline">
@@ -75,6 +79,7 @@ export function LinksPanel({ entityId, systemId, typeKey, canEdit, canAddHolders
             {note}
             {l.data.fromClass === true && ' · from class'}
           </span>
+          {secret && <VisChip mark={secret} className="ml-1.5" />}
         </span>
         {removable && l.data.fromClass !== true && (
           <button

@@ -4,6 +4,7 @@ import { trpc, type System, type Entity } from '../trpc';
 import { DEFAULT_TYPES, type SheetPart } from '../features';
 import { Label, useBilingual, useLang } from '../lang';
 import { AudiencePicker, describeAudience } from './AudiencePicker';
+import { entityMark, nodeMark, VisChip } from './Visibility';
 import { ClassesInput } from './Classes';
 import { CustomFields, type CustomGroup } from './CustomFields';
 import { LinksPanel } from './LinksPanel';
@@ -238,8 +239,20 @@ export function EntityEditor({ entityId, system, noun, onClose, back, page, page
   const contains = (node: Node): boolean => matches.has(node.id) || (node.kind === 'group' && node.children.some(contains));
   const mark = (id: string) => (matches.has(id) ? { 'data-match': '' } : {});
 
+  // The DM-only style: what players cannot see is tinted and outlined for the DM, with a chip saying who can see it.
+  // A player has no `access`, so nothing is marked for them.
+  const pageMark = isDm && e.access ? entityMark(system, { ownerId: e.ownerId, visibility: e.access.visibility }) : null;
+  const markOf = (node: Node) =>
+    isDm && e.access
+      ? nodeMark(system, { ownerId: e.ownerId, closedToOthers: !!e.schema.outside }, e.access.fieldVisibility[node.id] ?? node.visibility)
+      : null;
+  const secretClass = (node: Node) => (markOf(node)?.tone === 'secret' ? 'secret' : '');
+
+  // While reading the chip is a label; in Edit the same chip is the button that opens the choice.
   const pickerFor = (node: Node) => {
-    if (!isDm || !editing) return null;
+    if (!isDm) return null;
+    const mark = markOf(node);
+    if (!editing) return mark ? <VisChip mark={mark} /> : null;
     const override = e.access?.fieldVisibility[node.id] ?? null;
     const schemaDefault = node.visibility ? describeAudience(node.visibility, system) : 'same as above';
     return (
@@ -248,6 +261,7 @@ export function EntityEditor({ entityId, system, noun, onClose, back, page, page
         system={system}
         value={override}
         defaultLabel={schemaDefault}
+        mark={mark}
         onChange={(audience) => setFieldVisibility.mutate({ id: e.id, nodeId: node.id, audience })}
       />
     );
@@ -347,7 +361,7 @@ export function EntityEditor({ entityId, system, noun, onClose, back, page, page
     if (depth > 0 && !nodeShown(node)) return null;
     if (node.kind === 'group' && node.layout === 'row')
       return (
-        <div key={node.id} className="sheet-row match-target flex flex-wrap items-end gap-x-3 gap-y-1 rounded-md border-b border-line px-1 py-1 last:border-b-0">
+        <div key={node.id} className={`sheet-row match-target flex flex-wrap items-end gap-x-3 gap-y-1 rounded-md border-b border-line px-1 py-1 last:border-b-0 ${secretClass(node)}`}>
           <span className={`w-full sm:w-44 sm:pb-2 ${ABILITY_ROWS.test(node.id) ? 'display text-base' : 'text-sm font-medium'}`}>
             <Label text={node.label} ru={node.ru} />
           </span>
@@ -361,7 +375,7 @@ export function EntityEditor({ entityId, system, noun, onClose, back, page, page
               </label>
             ) : null,
           )}
-          <span className="ml-auto">{pickerFor(node)}</span>
+          <span className="ml-auto self-center">{pickerFor(node)}</span>
         </div>
       );
     if (node.kind === 'group')
@@ -371,6 +385,7 @@ export function EntityEditor({ entityId, system, noun, onClose, back, page, page
           id={`${e.typeKey}.${node.id}`}
           label={<Label text={node.label} ru={node.ru} />}
           picker={pickerFor(node)}
+          secret={markOf(node)?.tone === 'secret'}
           depth={depth}
           forceOpen={q !== '' && contains(node)}
           matched={matches.has(node.id)}
@@ -390,7 +405,7 @@ export function EntityEditor({ entityId, system, noun, onClose, back, page, page
     // The main picture of a gallery is shown and chosen inside the gallery, unless a page shows it on its own.
     if (galleryMains.has(node.id) && !shownHere) return null;
     return (
-      <div key={node.id} className="match-target mb-3 rounded-md px-1" {...mark(node.id)}>
+      <div key={node.id} className={`match-target mb-3 rounded-md px-1 ${secretClass(node) && 'secret py-1'}`} {...mark(node.id)}>
         <div className="mb-1 flex items-center justify-between gap-2">
           <span className="label mb-0">
             <Label text={node.label} ru={node.ru} />
@@ -534,17 +549,19 @@ export function EntityEditor({ entityId, system, noun, onClose, back, page, page
     </>
   );
 
+  // Who can see the whole page, beside its name: everyone, or the chip of the DM-only style.
+  const seenBy = isDm && e.access && <VisChip mark={pageMark ?? { tone: 'open', text: 'Seen by: everyone' }} />;
   const nameBlock = (
     <>
       {!editing ? (
-        <div className={`flex flex-wrap items-baseline gap-x-3 gap-y-1 ${sheet ? 'mb-1' : 'mb-4'}`}>
+        <div className={`flex flex-wrap items-center gap-x-3 gap-y-1 ${sheet ? 'mb-1' : 'mb-4'} ${pageMark ? 'secret rounded-md px-2 py-1' : ''}`} data-name-line>
           <h1 className="display text-2xl" data-entity-name>
             {bilingual(e.name, e.nameRu)}
           </h1>
-          {isDm && e.access && <span className="muted">Seen by: {describeAudience(e.access.visibility, system)}</span>}
+          {seenBy}
         </div>
       ) : (
-      <div className={`flex flex-wrap items-center gap-2 ${sheet ? 'mb-1' : 'mb-4'}`}>
+      <div className={`flex flex-wrap items-center gap-2 ${sheet ? 'mb-1' : 'mb-4'} ${pageMark ? 'secret rounded-md px-2 py-1' : ''}`} data-name-line>
         <NameInput key={e.name} name={e.name} disabled={!e.canEdit} onSave={(name) => rename.mutate({ id: e.id, name })} />
         {(e.canEdit || e.nameRu) && (
           <input
@@ -558,8 +575,11 @@ export function EntityEditor({ entityId, system, noun, onClose, back, page, page
             onKeyDown={(ev) => ev.key === 'Enter' && ev.currentTarget.blur()}
           />
         )}
-        {isDm && e.access && !sheet && (
-          <AudiencePicker system={system} value={e.access.visibility} onChange={(a) => a && setVisibility.mutate({ id: e.id, audience: a })} />
+        {isDm && e.access && !sheet ? (
+          <AudiencePicker system={system} value={e.access.visibility} mark={pageMark} onChange={(a) => a && setVisibility.mutate({ id: e.id, audience: a })} />
+        ) : (
+          // On a sheet with pages the choice itself is under "Sheet settings" on Basic Info.
+          seenBy
         )}
       </div>
       )}
@@ -663,6 +683,7 @@ export function EntityEditor({ entityId, system, noun, onClose, back, page, page
           {sheet.current.groups.map((g) => renderNode(g, 0))}
           {sheet.current.part && (
             <LinksPanel
+              system={system}
               entityId={e.id}
               systemId={e.systemId}
               typeKey={e.typeKey}
@@ -677,7 +698,7 @@ export function EntityEditor({ entityId, system, noun, onClose, back, page, page
               {editing && isDm && e.access && (
                 <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
                   <span className="muted">Who can see the sheet:</span>
-                  <AudiencePicker system={system} value={e.access.visibility} onChange={(a) => a && setVisibility.mutate({ id: e.id, audience: a })} />
+                  <AudiencePicker system={system} value={e.access.visibility} mark={pageMark} onChange={(a) => a && setVisibility.mutate({ id: e.id, audience: a })} />
                 </div>
               )}
               {controls}
@@ -717,7 +738,7 @@ export function EntityEditor({ entityId, system, noun, onClose, back, page, page
       {(e.schema.groups as Node[]).map((g) => renderNode(g, 0))}
 
       {['character', 'feature', 'spell', 'item'].includes(e.typeKey) && (
-        <LinksPanel entityId={e.id} systemId={e.systemId} typeKey={e.typeKey} canEdit={e.canEdit && editing} canAddHolders={isDm && editing} />
+        <LinksPanel system={system} entityId={e.id} systemId={e.systemId} typeKey={e.typeKey} canEdit={e.canEdit && editing} canAddHolders={isDm && editing} />
       )}
 
       {editing && isDm && e.typeKey === 'character' && (
@@ -790,6 +811,8 @@ function GroupBox(props: {
   id: string;
   label: React.ReactNode;
   picker: React.ReactNode;
+  /** Players cannot see this group: the DM-only tint and dashed outline. */
+  secret?: boolean;
   depth: number;
   forceOpen: boolean;
   matched: boolean;
@@ -804,7 +827,7 @@ function GroupBox(props: {
   };
   const shown = open || props.forceOpen;
   return (
-    <section className={`card mb-3 ${props.depth ? 'border-dashed' : 'border-t-2 border-t-accent'}`}>
+    <section className={`card mb-3 ${props.depth ? '' : 'border-t-2 border-t-accent'} ${props.secret ? 'secret' : ''}`} data-secret={props.secret ? '' : undefined}>
       <header className="match-target flex items-center justify-between gap-2 rounded-md px-3 py-2" {...(props.matched ? { 'data-match': '' } : {})}>
         <button type="button" className={`flex flex-1 cursor-pointer items-center gap-2 text-left ${props.depth ? 'font-semibold' : 'display text-base'}`} onClick={toggle}>
           <span className="w-3 text-xs text-muted">{shown ? '▼' : '▶'}</span>

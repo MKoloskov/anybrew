@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest';
+import { CLASS_MODULE } from '../src/classes';
 import { client, code, world, type Client } from './helpers';
 
 const SECRET = 'SECRET-';
@@ -259,5 +260,53 @@ describe('campaigns: a filter inside a system, closed to players of other campai
     expect((await alice.system.list()).map((s) => s.name)).toEqual(['Test System']);
     expect(await code(alice.system.get({ systemId: lancer }))).toBe('NOT_FOUND');
     expect(await code(alice.entity.list({ systemId: lancer }))).toBe('NOT_FOUND');
+  });
+});
+
+describe('who can see it, for the DM-only style (V4)', () => {
+  it('sends the audience of list rows, links and class features to the DM, and never to a player', async () => {
+    const { dm, systemId, players } = await world(['alice', 'bob']);
+    const { alice, bob } = players as { alice: Client; bob: Client };
+    const chosen = { all: false, players: [alice.userId(), bob.userId()], parties: [] };
+    const all = { all: true, players: [], parties: [] };
+
+    const hero = await dm.entity.create({ systemId, typeKey: 'character', name: 'Hero' });
+    await dm.entity.setOwner({ id: hero.id, ownerId: alice.userId() });
+    const secretItem = await dm.entity.create({ systemId, typeKey: 'item', name: 'Cursed Ring' });
+    await dm.entity.setVisibility({ id: secretItem.id, audience: { all: false, players: [], parties: [] } });
+    const sharedItem = await dm.entity.create({ systemId, typeKey: 'item', name: 'Rope' });
+    await dm.entity.setVisibility({ id: sharedItem.id, audience: chosen });
+    await dm.entity.link({ fromId: hero.id, kind: 'owns', toId: secretItem.id, data: {} });
+    await dm.entity.link({ fromId: hero.id, kind: 'owns', toId: sharedItem.id, data: {} });
+
+    // A class with one feature, taken by the hero: class features travel through classInfo.
+    const cls = await dm.entity.create({ systemId, typeKey: 'rule', name: 'Wizard' });
+    await dm.entity.setModules({ id: cls.id, modules: [CLASS_MODULE] });
+    const feature = await dm.entity.create({ systemId, typeKey: 'feature', name: 'Arcane Recovery' });
+    await dm.entity.setField({ id: feature.id, fieldId: 'ftype', value: 'Class feature' });
+    await dm.entity.setField({ id: feature.id, fieldId: 'class', value: 'Wizard' });
+    await dm.entity.setField({ id: hero.id, fieldId: 'classes', value: [{ classId: cls.id, subclass: null, level: 1 }] });
+
+    // The DM: every row says who can see it.
+    const dmRows = await dm.entity.list({ systemId });
+    expect(dmRows.find((r) => r.id === secretItem.id)!.visibility).toEqual({ all: false, players: [], parties: [] });
+    expect(dmRows.find((r) => r.id === sharedItem.id)!.visibility).toEqual(chosen);
+    const dmLinks = await dm.entity.links({ id: hero.id });
+    expect(dmLinks).toHaveLength(2);
+    expect(dmLinks.find((l) => l.other.id === sharedItem.id)!.other.seenBy).toEqual({ ownerId: null, visibility: chosen });
+    const dmClass = await dm.entity.classInfo({ id: hero.id });
+    expect(dmClass[0]!.found && dmClass[0]!.features[0]!.seenBy).toEqual({ ownerId: null, visibility: all });
+
+    // A player: no audience anywhere, so no name of another player leaks through a row.
+    const rows = await alice.entity.list({ systemId });
+    expect(rows.length).toBeGreaterThan(0);
+    for (const r of rows) expect(r.visibility).toBeUndefined();
+    const links = await alice.entity.links({ id: hero.id });
+    expect(links.map((l) => l.other.name)).toEqual(['Rope']);
+    for (const l of links) expect(l.other.seenBy).toBeUndefined();
+    const info = await alice.entity.classInfo({ id: hero.id });
+    expect(info[0]!.found && info[0]!.features).toHaveLength(1);
+    for (const c of info) if (c.found) for (const f of c.features) expect(f.seenBy).toBeUndefined();
+    expect(JSON.stringify([rows, links, info])).not.toContain(bob.userId());
   });
 });

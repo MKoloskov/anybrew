@@ -3,6 +3,7 @@ import { Link, useLocation } from 'wouter';
 import { isClassFeature, plural } from '../features';
 import { useBilingual } from '../lang';
 import { trpc, type Out, type System } from '../trpc';
+import { entityMark, VisChip } from './Visibility';
 
 export type ListRow = Out['entity']['list'][number];
 
@@ -109,16 +110,18 @@ export function FeatureBrowser({ system, rows, selectedId, href }: FeatureBrowse
   );
   const same = (v: string) => ({ value: v, label: v });
 
-  const folderRow = (e: ListRow) => (
+  // Only the DM receives who can see a feature; one that players cannot see is tinted, with its chip.
+  const folderRow = (e: ListRow, secret = entityMark(system, e)) => (
     <li key={e.id}>
       <Link
         href={href(e.id)}
-        className={`block rounded-md px-2 py-1 text-sm ${e.id === selectedId ? 'bg-accent/15' : 'hover:bg-surface-2'}`}
+        className={`block rounded-md px-2 py-1 text-sm ${secret ? 'secret-row' : ''} ${e.id === selectedId ? 'bg-accent/15' : 'hover:bg-surface-2'}`}
       >
         {e.info.tier !== null && <span className="mr-1 text-xs text-muted">[{e.info.tier}]</span>}
         {bilingual(e.name, e.nameRu)}
         {!isClassFeature(e.info.ftype) && e.info.class && <span className="ml-1 text-xs text-muted">· {e.info.class}</span>}
         {e.info.subclass && <span className="ml-1 text-xs text-muted">· {e.info.subclass}</span>}
+        {secret && <VisChip mark={secret} className="ml-1.5" />}
       </Link>
     </li>
   );
@@ -200,17 +203,24 @@ export function FeatureBrowser({ system, rows, selectedId, href }: FeatureBrowse
           <tbody>
             {sorted.map((e) => {
               const who = holders(e);
+              const secret = entityMark(system, e);
               return (
                 <tr
                   key={e.id}
                   data-feature={e.name}
-                  className={`cursor-pointer border-b border-line ${
+                  className={`cursor-pointer border-b border-line ${secret ? 'secret-row' : ''} ${
                     e.id === selectedId ? 'bg-accent/15' : 'hover:bg-surface-2'
                   }`}
                   onClick={() => navigate(href(e.id))}
                 >
-                  <td className="truncate px-1 py-1 font-medium">
-                    <Link href={href(e.id)}>{bilingual(e.name, e.nameRu)}</Link>
+                  <td className="px-1 py-1 font-medium">
+                    {/* The table has little room: the chip is its icon, with who can see it as the tooltip. */}
+                    <span className="flex items-center gap-1">
+                      <Link href={href(e.id)} className="truncate">
+                        {bilingual(e.name, e.nameRu)}
+                      </Link>
+                      {secret && <VisChip mark={secret} iconOnly className="shrink-0" />}
+                    </span>
                   </td>
                   <td className="truncate px-1 py-1 text-xs text-muted">{e.info.ftype ?? ''}</td>
                   <td className="truncate px-1 py-1 text-xs text-muted">{e.info.class ?? ''}</td>
@@ -231,7 +241,7 @@ export function FeatureBrowser({ system, rows, selectedId, href }: FeatureBrowse
                 const list = classFeatures.filter((e) => (cls === NONE ? !e.info.class : e.info.class === cls));
                 return (
                   <Folder key={cls} id={`features:class:${cls}`} title={cls === NONE ? 'No class' : cls} count={list.length} depth={1}>
-                    <ul className="ml-3">{byLevel(list).map(folderRow)}</ul>
+                    <ul className="ml-3">{byLevel(list).map((e) => folderRow(e))}</ul>
                   </Folder>
                 );
               })}
@@ -241,13 +251,13 @@ export function FeatureBrowser({ system, rows, selectedId, href }: FeatureBrowse
             const list = shown.filter((e) => e.info.ftype === t);
             return (
               <Folder key={t} id={`features:type:${t}`} title={plural(t)} count={list.length}>
-                <ul className="ml-3">{byLevel(list).map(folderRow)}</ul>
+                <ul className="ml-3">{byLevel(list).map((e) => folderRow(e))}</ul>
               </Folder>
             );
           })}
           {untyped.length > 0 && (
             <Folder id="features:untyped" title="No type" count={untyped.length}>
-              <ul className="ml-3">{byLevel(untyped).map(folderRow)}</ul>
+              <ul className="ml-3">{byLevel(untyped).map((e) => folderRow(e))}</ul>
             </Folder>
           )}
         </div>

@@ -89,6 +89,27 @@
     @apply font-display font-normal tracking-wide;
   }
 
+  /* A small pill of quiet text: who can see something. */
+  .chip {
+    @apply inline-flex items-center gap-1 rounded-full border border-line px-2 align-middle text-xs leading-5 font-normal whitespace-nowrap text-muted;
+  }
+  /* The DM-only style (PLAN.md section 11.9): a faint brass tint and a dashed brass outline on what
+     players cannot see. The tint is laid over the element's own background, so it works on any surface. */
+  .chip-secret,
+  .secret,
+  .secret-row {
+    background-image: linear-gradient(var(--c-secret), var(--c-secret));
+  }
+  .chip-secret {
+    border-style: dashed;
+    border-color: color-mix(in srgb, var(--c-accent) 70%, transparent);
+    color: var(--c-accent);
+  }
+  .secret {
+    outline: 1px dashed color-mix(in srgb, var(--c-accent) 65%, transparent);
+    outline-offset: -1px;
+  }
+
   /* The top bar is dark slate in both modes; its controls sit on the dark. */
   .bar .input,
   .bar .btn {

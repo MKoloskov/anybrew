@@ -5,6 +5,7 @@ import { trpc, type System } from '../trpc';
 import { markNew } from './EntityEditor';
 import { EmptyState } from './Icons';
 import type { ListRow } from './Lists';
+import { entityMark, VisChip } from './Visibility';
 
 const KINDS = [
   { key: 'pc', title: 'PC' },
@@ -240,9 +241,11 @@ function CharacterCard({ system, row: e, bilingual }: CardProps) {
     })
     .filter((l): l is [string, string] => l[1] !== null);
 
+  // Only the DM receives who can see a character; one that players cannot see is tinted and outlined, with its chip.
+  const secret = entityMark(system, e);
   return (
     <li data-entity={e.name}>
-      <Link href={`/s/${system.id}/characters/${e.id}`} className="card flex h-full flex-col overflow-hidden hover:border-accent">
+      <Link href={`/s/${system.id}/characters/${e.id}`} className={`card flex h-full flex-col overflow-hidden hover:border-accent ${secret ? 'secret' : ''}`}>
         <div className="portrait-frame aspect-square w-full bg-surface-2">
           {card?.portrait ? (
             <img src={`/api/file/${card.portrait}`} alt="" loading="lazy" className="h-full w-full object-cover" />
@@ -257,6 +260,7 @@ function CharacterCard({ system, row: e, bilingual }: CardProps) {
             {bilingual(e.name, e.nameRu)}
           </span>
           {card?.allegiance && <span className="text-xs text-muted">{card.allegiance}</span>}
+          {secret && <VisChip mark={secret} className="mt-0.5 max-w-full self-start" />}
           {lines.length > 0 && (
             <dl className="mt-1 space-y-0.5 text-xs">
               {lines.map(([key, value]) => (

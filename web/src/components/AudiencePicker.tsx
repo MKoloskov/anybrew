@@ -1,5 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import type { Audience, System } from '../trpc';
+import type { Mark } from './Visibility';
 
 export function describeAudience(a: Audience, system: System): string {
   if (a.all) return 'Everyone';
@@ -17,10 +19,15 @@ type Props = {
   defaultLabel?: string;
   onChange: (next: Audience | null) => void;
   compact?: boolean;
+  /**
+   * What the choice means here, worked out by the page (see Visibility.tsx): the button is the same
+   * chip the DM sees while reading. Without it the button shows the plain setting.
+   */
+  mark?: Mark | null;
 };
 
 /** A small dropdown for choosing who can see something. */
-export function AudiencePicker({ system, value, defaultLabel, onChange, compact }: Props) {
+export function AudiencePicker({ system, value, defaultLabel, onChange, compact, mark }: Props) {
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -39,6 +46,9 @@ export function AudiencePicker({ system, value, defaultLabel, onChange, compact 
   const showChosen = mode === 'chosen' || choosing;
   const text = value === null ? (defaultLabel ?? 'Default') : describeAudience(value, system);
 
+  const quiet = !!compact && value === null && !mark;
+  const secret = mark ? mark.tone === 'secret' : mode === 'dm' || mode === 'chosen';
+
   const toggle = (list: 'players' | 'parties', id: string) => {
     const has = current[list].includes(id);
     onChange({ ...current, all: false, [list]: has ? current[list].filter((x) => x !== id) : [...current[list], id] });
@@ -50,17 +60,31 @@ export function AudiencePicker({ system, value, defaultLabel, onChange, compact 
 
   return (
     <div className="relative inline-block" ref={ref}>
-      <button
-        type="button"
-        className={`btn ${compact ? 'px-2 py-0.5 text-xs' : ''} ${mode === 'dm' ? 'text-amber-700 dark:text-amber-400' : ''} ${compact && value === null ? 'opacity-50 hover:opacity-100' : ''}`}
-        onClick={() => setOpen(!open)}
-        title={compact && value === null ? `Who can see this: ${text}` : 'Who can see this'}
-      >
-        <span aria-hidden>👁</span>
-        {!(compact && value === null) && <span className="max-w-40 truncate">{text}</span>}
-      </button>
+      {quiet ? (
+        // Nothing set here and nothing to say: a faint eye that opens the choice.
+        <button
+          type="button"
+          className="inline-flex cursor-pointer items-center rounded-full p-1 text-muted opacity-50 hover:bg-surface-2 hover:opacity-100"
+          onClick={() => setOpen(!open)}
+          title={`Who can see this: ${text}`}
+          aria-label={`Who can see this: ${text}`}
+        >
+          <Eye className="size-3.5" strokeWidth={1.75} aria-hidden />
+        </button>
+      ) : (
+        <button
+          type="button"
+          className={`chip cursor-pointer hover:border-accent ${secret ? 'chip-secret' : 'bg-surface'} ${compact ? '' : 'px-2.5 py-0.5 text-sm'}`}
+          data-vis={secret ? 'secret' : 'open'}
+          onClick={() => setOpen(!open)}
+          title="Who can see this"
+        >
+          {secret ? <EyeOff className="size-3 shrink-0" strokeWidth={1.75} aria-hidden /> : <Eye className="size-3 shrink-0" strokeWidth={1.75} aria-hidden />}
+          <span className="max-w-44 truncate">{mark?.text ?? text}</span>
+        </button>
+      )}
       {open && (
-        <div className="card absolute right-0 z-20 mt-1 w-60 p-3 text-sm shadow-lg">
+        <div className="card absolute right-0 z-20 mt-1 w-60 p-3 text-left text-sm font-normal text-fg shadow-lg">
           {defaultLabel !== undefined && (
             <Radio checked={mode === 'default' && !choosing} onChange={() => pick(null)} label={`Default (${defaultLabel})`} />
           )}
