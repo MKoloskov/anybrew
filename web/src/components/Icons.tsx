@@ -1,6 +1,6 @@
 // Thin-line icons (PLAN.md section 11.5). Section icons come from the Lucide icon set (ISC licence);
 // the d20 is our own drawing.
-import { Award, Backpack, BookOpen, Contact, Database, NotebookPen, ScrollText, Users, Wand, type LucideIcon } from 'lucide-react';
+import { Award, Backpack, BookOpen, Contact, Database, MessagesSquare, NotebookPen, ScrollText, Users, Wand, type LucideIcon } from 'lucide-react';
 
 /** The d20: logo mark, empty lists, and later the sheet dividers. */
 export function D20({ className }: { className?: string }) {
@@ -29,6 +29,7 @@ const SECTION_ICONS: Record<string, LucideIcon> = {
   rules: ScrollText,
   glossary: BookOpen,
   notes: NotebookPen,
+  requests: MessagesSquare,
   people: Contact,
   data: Database,
 };

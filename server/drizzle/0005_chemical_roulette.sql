@@ -1,0 +1,1 @@
+ALTER TABLE `systems` ADD `schema_version` integer DEFAULT 0 NOT NULL;

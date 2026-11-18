@@ -6,12 +6,14 @@ import { EntityEditor, markNew } from '../components/EntityEditor';
 import { CharacterList } from '../components/CharacterList';
 import { D20, EmptyState, SectionIcon } from '../components/Icons';
 import { FeatureBrowser, type ListRow } from '../components/Lists';
+import { entityMark, VisChip } from '../components/Visibility';
 import { LangProvider, useBilingual, type Lang } from '../lang';
 import { ENTITY_TABS, type EntityTabDef } from '../tabs';
 import { useTheme, type ThemeChoice } from '../theme';
 import { trpc, type System } from '../trpc';
 import { DataTab } from './Data';
 import { PeopleTab } from './People';
+import { RequestsTab } from './Requests';
 
 type Props = { systemId: string; tab: string; entityId?: string; page?: string; user: { id: string; displayName: string; language: Lang } };
 
@@ -22,6 +24,8 @@ export function SystemPage({ systemId, tab, entityId, page, user }: Props) {
   // Polling stands in for live updates until phase 5: other people's changes appear within 10 seconds.
   const system = trpc.system.get.useQuery({ systemId }, { refetchInterval: 10_000 });
   const systems = trpc.system.list.useQuery();
+  // Open requests whose last message is from the other side.
+  const waiting = trpc.request.waiting.useQuery({ systemId }, { refetchInterval: 10_000 });
   const createSystem = trpc.system.create.useMutation({
     onSuccess: async ({ systemId: id }) => {
       await utils.system.list.invalidate();
@@ -44,6 +48,7 @@ export function SystemPage({ systemId, tab, entityId, page, user }: Props) {
   const focused = tab === 'characters' && !!entityId;
   const tabs = [
     ...ENTITY_TABS.map((t) => ({ key: t.key, label: t.label })),
+    { key: 'requests', label: 'Requests' },
     { key: 'people', label: 'People' },
     ...(isDm ? [{ key: 'data', label: 'Data' }] : []),
   ];
@@ -93,13 +98,23 @@ export function SystemPage({ systemId, tab, entityId, page, user }: Props) {
               href={`/s/${c.id}/${t.key}`}
               aria-current={tab === t.key ? 'page' : undefined}
               title={t.label}
-              className={`flex items-center gap-1.5 border-b-2 px-2 pt-1.5 pb-2.5 text-sm font-medium md:px-3 ${
+              className={`relative flex items-center gap-1.5 border-b-2 px-1.5 pt-1.5 pb-2.5 text-sm font-medium md:px-3 ${
                 tab === t.key ? 'border-accent text-bar-fg' : 'border-transparent text-bar-fg/70 hover:text-bar-fg'
               }`}
             >
               <SectionIcon section={t.key} className="size-5 md:size-4" />
               {/* On a phone the labels drop and the icons stay; the label is still the link's name and its tooltip. */}
               <span className="sr-only md:not-sr-only">{t.label}</span>
+              {t.key === 'requests' && !!waiting.data?.count && (
+                // On a phone the count sits on the corner of the icon, so the icons still fit on one line.
+                <span
+                  data-requests-count
+                  title={`${waiting.data.count} waiting for you`}
+                  className="absolute -top-0.5 right-0 rounded-full bg-accent px-1 text-[10px] leading-4 font-semibold text-accent-ink md:static md:px-1.5 md:text-xs md:leading-5"
+                >
+                  {waiting.data.count}
+                </span>
+              )}
             </Link>
           ))}
         </nav>
@@ -138,7 +153,9 @@ export function SystemPage({ systemId, tab, entityId, page, user }: Props) {
 
       <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col">
 
-      {tab === 'people' ? (
+      {tab === 'requests' ? (
+        <RequestsTab system={c} requestId={entityId} />
+      ) : tab === 'people' ? (
         <PeopleTab system={c} userId={user.id} />
       ) : tab === 'data' && isDm ? (
         <DataTab system={c} />
@@ -200,21 +217,29 @@ function EntityTab({ system, entityId, def }: EntityTabProps) {
   const campaignNames = (ids: string[]) => system.campaigns.filter((c) => ids.includes(c.id)).map((c) => c.name).join(', ');
 
   const href = (id: string) => `/s/${system.id}/${tab}/${id}`;
-  const row = (e: ListRow) => (
-    <li key={e.id} data-entity={e.name}>
-      <Link
-        href={href(e.id)}
-        className={`block rounded-md px-3 py-2 text-sm ${e.id === entityId ? 'bg-accent/15' : 'hover:bg-surface-2'}`}
-      >
-        <span className="font-medium">{bilingual(e.name, e.nameRu)}</span>
-        <span className="block text-xs text-muted">
-          {e.isClass && 'Class · '}
-          {e.dmOnly ? 'DM only' : e.ownerId ? `Owner: ${memberName(e.ownerId) ?? 'former member'}` : 'Shared'}
-          {e.campaignIds.length > 0 && ` · ${campaignNames(e.campaignIds)}`}
-        </span>
-      </Link>
-    </li>
-  );
+  const row = (e: ListRow) => {
+    // Only the DM receives who can see a row; an entry players cannot see is tinted, with its chip.
+    const secret = entityMark(system, e);
+    const facts = [
+      e.isClass ? 'Class' : null,
+      secret ? null : e.ownerId ? `Owner: ${memberName(e.ownerId) ?? 'former member'}` : 'Shared',
+      e.campaignIds.length > 0 ? campaignNames(e.campaignIds) : null,
+    ].filter(Boolean);
+    return (
+      <li key={e.id} data-entity={e.name}>
+        <Link
+          href={href(e.id)}
+          className={`block rounded-md px-3 py-2 text-sm ${secret ? 'secret-row' : ''} ${e.id === entityId ? 'bg-accent/15' : 'hover:bg-surface-2'}`}
+        >
+          <span className="font-medium">{bilingual(e.name, e.nameRu)}</span>
+          <span className="flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-muted">
+            {secret && <VisChip mark={secret} />}
+            {facts.join(' · ')}
+          </span>
+        </Link>
+      </li>
+    );
+  };
 
   return (
     // The feature table needs more room than a list of names.

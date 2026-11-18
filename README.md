@@ -28,6 +28,11 @@ Everything is in one file: `server\data\anybrew.db`. Deleting it resets the app 
 |---|---|
 | `npm test` | Server tests: accounts, invites, the change log, export/import, that a player cannot receive hidden data through any endpoint, and that campaigns and Systems stay closed to outsiders. |
 | `npm run test:browser` | A real browser plays a DM and two players of different campaigns through setup, invites, a note with secret parts, the campaign wall, history and undo. Screenshots land in `e2e\screenshots`. |
+| `npm run schema:check -w server` | The schemas in the code match the accepted snapshot. After a schema change it lists what the change needs (see the top of `server\src\schemas\versions.ts`). |
+| `npm run schema:accept -w server` | Stores the schemas as the new snapshot, once nothing is missing. Commit `snapshot.json` with the code. |
+| `npm run schema:audit -w server` | Looks through the database for data stored under ids no schema knows. Changes nothing. |
+
+When a schema change carries data along, the server copies the database to `server\data\backups\before-schema-v<n>-<time>.db` before it starts. To take the change back: stop the server, put that copy back as `anybrew.db`, and run the earlier version of the code.
 
 ## Layout
 

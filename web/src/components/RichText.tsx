@@ -8,15 +8,23 @@ export function RichTextView({ html }: { html: string }) {
   return <div className="rich" dangerouslySetInnerHTML={{ __html: html }} />;
 }
 
-type Props = { value: string; disabled: boolean; label: string; onSave: (html: string | null) => void };
+type Props = {
+  value: string;
+  disabled: boolean;
+  label: string;
+  onSave: (html: string | null) => void;
+  /** Called on every change, for a text that is sent with a button instead of saved on leaving (request messages). */
+  onChange?: (html: string) => void;
+};
 
 /** An editor for formatted text. It saves when the cursor leaves it, like the other fields. */
-export function RichTextEditor({ value, disabled, label, onSave }: Props) {
+export function RichTextEditor({ value, disabled, label, onSave, onChange }: Props) {
   const editor = useEditor({
     extensions: [StarterKit, TableKit.configure({ table: { resizable: false } })],
     content: value,
     editable: !disabled,
     editorProps: { attributes: { class: 'rich min-h-24 px-3 py-2 outline-none', 'aria-label': label, role: 'textbox' } },
+    onUpdate: ({ editor: e }) => onChange?.(e.isEmpty ? '' : e.getHTML()),
     onBlur: ({ editor: e }) => {
       const html = e.isEmpty ? '' : e.getHTML();
       if (html !== value) onSave(html === '' ? null : html);

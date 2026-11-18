@@ -4,6 +4,7 @@ import { nanoid } from 'nanoid';
 import { z } from 'zod';
 import { createSession, destroySession, destroyUserSessions, hashPassword, verifyPassword } from '../auth';
 import { campaignMembers, campaigns, systems, invites, members, users } from '../db/schema';
+import { currentSchemaVersion } from '../schemas/versions';
 import { authedProcedure, publicProcedure, router } from '../trpc';
 
 const username = z
@@ -36,7 +37,7 @@ export const authRouter = router({
         tx.insert(users)
           .values({ id: userId, username: input.username, displayName: input.displayName, passwordHash, createdAt: Date.now() })
           .run();
-        tx.insert(systems).values({ id: systemId, name: input.systemName, createdAt: Date.now() }).run();
+        tx.insert(systems).values({ id: systemId, name: input.systemName, schemaVersion: currentSchemaVersion(), createdAt: Date.now() }).run();
         tx.insert(members).values({ systemId, userId, role: 'dm' }).run();
       });
       ctx.setSession(createSession(ctx.db, userId));

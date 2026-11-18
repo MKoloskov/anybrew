@@ -1,3 +1,4 @@
+import { TRPCError } from '@trpc/server';
 import type { FastifyInstance } from 'fastify';
 import { unzipSync, zipSync, type Zippable } from 'fflate';
 import fs from 'node:fs';
@@ -86,7 +87,13 @@ export function registerArchiveRoutes(app: FastifyInstance, db: DB, cookieName: 
     } catch {
       return reply.code(400).send({ error: 'This is not a system export file' });
     }
-    const systemId = importSystem(db, parsed.data, user.id, { dir: uploadsDir, bytes: parsed.bytes });
-    return reply.send({ systemId });
+    try {
+      const systemId = importSystem(db, parsed.data, user.id, { dir: uploadsDir, bytes: parsed.bytes });
+      return reply.send({ systemId });
+    } catch (e) {
+      // A file this version cannot take (saved by a newer version of the app) is the sender's to fix.
+      if (e instanceof TRPCError && e.code === 'BAD_REQUEST') return reply.code(400).send({ error: e.message });
+      throw e;
+    }
   });
 }

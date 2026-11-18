@@ -339,7 +339,8 @@ export const entityRouter = router({
           nameRu: row.nameRu,
           ownerId: row.ownerId,
           campaignIds: visibleCampaigns(row, viewer),
-          dmOnly: viewer.role === 'dm' ? isDmOnly(row) : undefined,
+          // Who can see the entity, for the DM-only style of list rows. Audiences name other players, so only the DM receives them.
+          visibility: viewer.role === 'dm' ? row.visibility : undefined,
           // What lists sort, group and filter by. Only values of fields this viewer may see.
           info: linkInfo(seen),
           // What the card of a character shows, again only from fields this viewer may see.
@@ -721,7 +722,8 @@ export const entityRouter = router({
       .map((c) => ({
         ...c,
         label: c.target === 'field' && c.key ? (findField(schema, c.key)?.label ?? c.key) : null,
-        canRevert: c.target === 'field' || c.target === 'name',
+        // A change to a field that a later schema removed stays in the history, but cannot be put back.
+        canRevert: (c.target === 'field' && !!c.key && !!findField(schema, c.key)) || c.target === 'name',
       }));
   }),
 
@@ -733,6 +735,7 @@ export const entityRouter = router({
     ctx.db.transaction((tx) => {
       const row = loadEntity(tx, change.entityId);
       if (change.target === 'field' && change.key) {
+        if (!findField(schemaOf(row), change.key)) throw new TRPCError({ code: 'BAD_REQUEST', message: 'This field no longer exists' });
         writeField(tx, row.id, change.key, change.oldValue ?? null, ctx.user.id);
       } else if (change.target === 'name' && typeof change.oldValue === 'string') {
         tx.update(entities).set({ name: change.oldValue, updatedAt: Date.now() }).where(eq(entities.id, row.id)).run();
@@ -761,7 +764,13 @@ export const entityRouter = router({
       .where(and(eq(entities.systemId, row.systemId), eq(entities.typeKey, 'feature'), isNull(entities.deletedAt)))
       .all()
       .filter((f) => canSeeEntity(viewer, f))
-      .map((f) => ({ id: f.id, name: f.name, nameRu: f.nameRu, info: linkInfo(toDto(ctx.db, f, viewer).values) }))
+      .map((f) => ({
+        id: f.id,
+        name: f.name,
+        nameRu: f.nameRu,
+        info: linkInfo(toDto(ctx.db, f, viewer).values),
+        seenBy: viewer.role === 'dm' ? { ownerId: f.ownerId, visibility: f.visibility } : undefined,
+      }))
       .filter((f) => sameText(f.info.ftype, CLASS_FEATURE));
     const text = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
     return picks.map((pick) => {
@@ -961,7 +970,15 @@ export const entityRouter = router({
         kind: l.kind,
         direction: l.fromId === row.id ? ('out' as const) : ('in' as const),
         data: l.data,
-        other: { id: other.id, name: other.name, nameRu: other.nameRu, typeKey: other.typeKey, info: linkInfo(toDto(ctx.db, other, viewer).values) },
+        other: {
+          id: other.id,
+          name: other.name,
+          nameRu: other.nameRu,
+          typeKey: other.typeKey,
+          info: linkInfo(toDto(ctx.db, other, viewer).values),
+          // Who can see the other end, for the DM-only style of the row. Only the DM receives it.
+          seenBy: viewer.role === 'dm' ? { ownerId: other.ownerId, visibility: other.visibility } : undefined,
+        },
       });
     }
     return out;
@@ -1133,8 +1150,4 @@ export function attachImage(db: DB, row: EntityRow, fieldId: string, userId: str
     if (field.type === 'image') writeField(tx, row.id, field.id, file.id, userId);
     else if (field.main && typeof values[field.main] !== 'string') writeField(tx, row.id, field.main, file.id, userId);
   });
-}
-
-function isDmOnly(row: EntityRow): boolean {
-  return !row.ownerId && !row.visibility.all && !row.visibility.players.length && !row.visibility.parties.length;
 }

@@ -9,6 +9,9 @@
     "typecheck": "tsc --noEmit",
     "db:generate": "drizzle-kit generate",
     "backup": "tsx src/backup.ts",
+    "schema:check": "tsx src/schema-tool.ts check",
+    "schema:accept": "tsx src/schema-tool.ts accept",
+    "schema:audit": "tsx src/schema-tool.ts audit",
     "import:chronica": "tsx src/import/chronica.ts",
     "convert:feature-types": "tsx src/import/feature-types.ts"
   },

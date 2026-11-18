@@ -32,6 +32,10 @@ export const systems = sqliteTable('systems', {
   id: text('id').primaryKey(),
   name: text('name').notNull(),
   settings: text('settings', { mode: 'json' }).$type<SystemSettings>().notNull().default({}),
+  // The version of the schemas its stored data fits (schemas/versions.ts). Every insert of a System
+  // names it: a new System is at the current version, an imported one at the version of its file.
+  // Systems from before versioning are at 0.
+  schemaVersion: integer('schema_version').notNull().default(0),
   createdAt: integer('created_at').notNull(),
 });
 
@@ -196,4 +200,42 @@ export const files = sqliteTable(
     createdAt: integer('created_at').notNull(),
   },
   (t) => [index('files_entity').on(t.entityId)],
+);
+
+export type RequestStatus = 'open' | 'resolved';
+
+/**
+ * A thread between one player and the DMs of a System (PLAN.md 10.4).
+ * Not an entity: no schema, no audience. Its player and the DMs see it, nobody else.
+ */
+export const requests = sqliteTable(
+  'requests',
+  {
+    id: text('id').primaryKey(),
+    systemId: text('system_id').notNull().references(() => systems.id, { onDelete: 'cascade' }),
+    // The player the thread belongs to. It stays when the player leaves the System, so the DM keeps the thread.
+    playerId: text('player_id').notNull(),
+    subject: text('subject').notNull(),
+    status: text('status').$type<RequestStatus>().notNull().default('open'),
+    // Who started it: the player, or a DM writing to the player.
+    createdBy: text('created_by').notNull(),
+    createdAt: integer('created_at').notNull(),
+    // Time of the last message, or of the last resolve or reopen.
+    updatedAt: integer('updated_at').notNull(),
+    resolvedAt: integer('resolved_at'),
+  },
+  (t) => [index('requests_system').on(t.systemId, t.playerId)],
+);
+
+/** One message of a request: rich text, cleaned on the server. Never changed after it is sent. */
+export const requestMessages = sqliteTable(
+  'request_messages',
+  {
+    id: text('id').primaryKey(),
+    requestId: text('request_id').notNull().references(() => requests.id, { onDelete: 'cascade' }),
+    authorId: text('author_id').notNull(),
+    body: text('body').notNull(),
+    createdAt: integer('created_at').notNull(),
+  },
+  (t) => [index('request_messages_request').on(t.requestId, t.createdAt)],
 );

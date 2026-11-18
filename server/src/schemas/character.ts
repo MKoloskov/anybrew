@@ -231,7 +231,8 @@ export const character: EntitySchema = {
       num('money', 'Money ($)'),
     ]),
     // Filled by hand for now: what was chosen at which level-up and between levels.
-    onPage('progression', 'progression', 'Progression History', [
+    // The group has its own id: a group and a field with one id would share one audience override.
+    onPage('progression', 'progression_history', 'Progression History', [
       f('progression', 'Progression History', 'table', { columns: ['Level', 'When', 'What was chosen'] }),
     ]),
     // What the player wants others to know: the only long text of the outside view.

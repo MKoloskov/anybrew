@@ -228,12 +228,19 @@ Phases 0 and 1 carry most of the technical risk. Everything after them reuses th
 ## 6. Design constraints for the "later" features
 
 - **Schema builder:** schemas are already data, so the builder needs no change to storage. Schema versioning (adding, renaming or removing fields on existing entities) is needed from phase 1.
+  - **Built 2026-11-18 (F5).** It did not exist: only the database tables had migrations. Now every System records the version of the schemas its data fits, and a numbered list of schema changes (`server/src/schemas/versions.ts`) carries the stored data along: values, audience overrides, translations, pictures and the change log. A change can rename an id, remove a node, move a node out of a group, convert a field's type or options, rename or remove a module.
+  - **When it runs:** on server start, for every System that is behind, after a full copy of the database to `backups\before-schema-v<n>-<time>.db` (never pruned). On import, for the imported file: an export carries its version, a file without one counts as version 0, and a file from a newer version of the app is refused. A database saved by a newer version stops the server from starting.
+  - **Visibility is never widened by a schema change.** When a node leaves a group that the DM narrowed on one entity, the node gets that audience itself, combined with what it had; where the two cannot be combined exactly, the result is the narrower one. A change of who sees a field by default (its own audience, a group above it, owner-only, the outside view of a character) must be stated in the change on purpose.
+  - **The guard:** `snapshot.json` next to the schemas lists every id of every type as last accepted. A server test compares it with the code and fails, with the lines to write, when a schema changed without the matching entry: an id that disappeared, a changed type, a lost option, a node that left a group, a changed default audience, an id used a second time, two nodes with one id. Adding a field needs only a new snapshot (`npm run schema:accept -w server`).
+  - **Version 0** is the schemas of 2026-11-18. The first check found one fault, fixed before the first snapshot: the Progression History group and its table shared the id `progression`; the group is now `progression_history` (no stored data used the group's id).
+  - **Not covered:** removing or renaming a whole entity type (the check refuses it until it is built), and changes inside the custom sections of a single entity, which the DM manages in the app.
 - **Crafting:** recipes are entities linking inputs → outputs. This fits the Link model.
 - **VTT:** tokens are links to entities, so HP and conditions on a token are the sheet values. This needs real-time sync (WebSockets), which phase 5's live updates should already introduce.
 
 ## 7. Open decisions
 
 - **VPS and domain:** proposed Hetzner Cloud, Helsinki, smallest shared server; the domain will be based on the name AnyBrew, exact address still to be chosen. The owner pays with a Georgian card; players are in Georgia, Latvia, France and Russia. The player in Russia uses a VPN, so blocking of foreign hosts is not a concern. **Development starts local:** the app runs on the owner's PC until the owner creates the server account and buys the domain; deployment is the last step of phase 0 and does not block phase 1.
+- **Order of work (owner, 2026-11-18): structure first, hosting after, players last.** First the structure of the whole app is built on the owner's PC (the "bones": every section in its working shape), then some content is put in (the "meat"). Only then comes hosting: the VPS and domain, deployment and the nightly off-server backup. Inviting players comes later still, after the security review of the visibility filter. Until hosting, the data is protected by backups made on the owner's PC.
 
 Answered 2026-11-16:
 - `(+)` after a talent name means "taken".
@@ -289,7 +296,7 @@ One language, TypeScript, on the server and in the browser, because the owner do
 
 ## 10. Character UX rework and Player Requests (decided 2026-11-17; U1, U2 and U3 built 2026-11-18)
 
-Ordered by the owner on 2026-11-17. The server step (U1), the character list (U2) and the focused sheet (U3, both steps: page menu, page addresses, feature split, Sheet settings, search counts per page, header with the framed portrait and a d20 divider, first versions of Home and Preview, the gallery screen) are built; Player Requests (U4) are not. The owner's check of U3 is task U3c. The owner's answers to the open questions are in 10.7; the tasks are U1 to U10 in `TODOs.md`.
+Ordered by the owner on 2026-11-17. The server step (U1), the character list (U2) and the focused sheet (U3, both steps: page menu, page addresses, feature split, Sheet settings, search counts per page, header with the framed portrait and a d20 divider, first versions of Home and Preview, the gallery screen) are built; of Player Requests the threads are built (U4a), pictures in messages are not (U4b). The owner's check of U3 is task U3c. The owner's answers to the open questions are in 10.7; the tasks are U1 to U10 in `TODOs.md`.
 It concerns characters only for now. Other sections (Features, Spells, Items…) keep the current list-beside-editor layout and may follow later.
 
 ### 10.1 Two levels: list, then sheet
@@ -352,6 +359,23 @@ The DM's sheet controls (owner, who can see the sheet, sheet modules, history, d
 - **Storage:** a `requests` table (System, the player it belongs to, subject, status, dates) and a `request_messages` table. A request belongs to its player's account inside one System. Requests are not entities: they have no schema, no sheet and no audience. They are part of the JSON export and import of a System.
 - **Count in the navigation:** for the DM, open requests whose last message is from the player; for the player, open requests whose last message is from the DM. No "read" marks are stored.
 
+**Decided by the owner on 2026-11-18, before the build:**
+- **Messages are rich text** (bold, lists, headings, quotes, tables), cleaned on the server like the description fields, **and can carry pictures**.
+- **The DM can start a thread too**, addressed to one chosen player. It lies in that player's Open folder and counts as waiting for them.
+- **Nothing is edited after sending.** Messages stay as sent. **The DM can delete a whole request**; it is then gone for both sides. A player cannot delete.
+- **A player removed from the System:** their requests stay in the DM's folders with the name and "former member"; open ones no longer count as waiting. If the player is added again, they see them again.
+
+**How the build follows from this (Claude's proposal, 2026-11-18):**
+- **Two steps,** as with U3, the owner checking after each: **U4a** the threads (tables, endpoints, rich text, DM-started threads, delete, folders, count, export and import, tests); **U4b** pictures in messages.
+- **Pictures are attached to a message,** shown under its text as small pictures that open large; they are not placed inside the text. Same types and size limit as portraits (PNG, JPEG, WebP, GIF, 8 MB), 10 per message at most.
+- **Pictures of requests have their own table** (`request_files`) and their own address, apart from entity pictures, because the rule for who may see them is different: the player of the request and the DMs, nobody else. The files lie in the same uploads folder, so the backup command covers them without a change; the ZIP export and import carry them.
+- **Several DMs:** every DM sees and answers every request; "from the DM" means from any DM. A thread can only be addressed to a player, not to another DM.
+- **Deleting a request** removes its rows for good after a confirmation; its picture files stay on disk until the clean-up task (F7).
+- **Import:** a request whose player has no account on the importing server is left out, like that player's membership.
+- Inside a character sheet the site navigation is hidden (10.7, decision 8), so the Requests count is not shown there.
+
+**Step 1 (U4a), built 2026-11-18.** "Requests" is a tab for everyone, between Notes and People, with the count beside it. The list on the left has the "New request" button and the two folders with their counts; a row shows the subject, whose turn it is ("Waiting for you", "Waiting for the DM", "Waiting for the player", "Resolved") and, for the DM, the player's name. The thread on the right shows the messages in order, DM messages with a brass edge, and the reply box; the DM has "Mark resolved" or "Reopen", and "Delete". A resolved request has no reply box. The list opens on the folder of the request that is open. Other people's messages arrive with the regular 10-second refresh. Pictures in messages (U4b) are not built.
+
 ### 10.5 What changes for existing behaviour
 
 - The Characters tab no longer shows a list beside an open character.
@@ -368,7 +392,7 @@ The DM's sheet controls (owner, who can see the sheet, sheet modules, history, d
 | 1 | Server: pages in the schema, regrouped character schema, tags, background, gallery field type, the DM's card field choice on the System, card values in the list, everything except the Preview closed to other players, server tests. The old screen keeps working after this step. | U1 |
 | 2 | Character list: tabs, tag filter, cards, the DM's card field choice, filter settings remembered per viewer. | U2 |
 | 3 | Focused sheet: right-hand menu, pages, search across pages, first versions of Home and Preview, rewritten browser tests. | U3 |
-| 4 | Player Requests: tables, endpoints, export and import, screen, tests. | U4 |
+| 4 | Player Requests, in two steps: the threads (tables, endpoints, export and import, screen, tests), then pictures in messages. | U4a, U4b |
 | Later | The owner's design of the Preview page, Home, Spells Known, automatic Progression History, Combat details. | U5 to U9 |
 
 ### 10.7 Decisions (owner, 2026-11-17)
@@ -460,7 +484,7 @@ Danger (red), success (green), the search highlight (yellow) and the "outdated" 
 | 1 | Light / dark switch on today's look; browser test that the choice survives a reload. | V1 |
 | 2 | Tokens, fonts, shapes and top bar: every component moved to the named colours. Owner checks on PC and phone, in both modes and with Russian reading on. | V2 |
 | 3 | Section icons, d20 logo and empty lists, login page. | V3 |
-| 4 | DM-only style, with a browser test that the chip shows for the DM and not for a player. | V4 |
+| 4 | DM-only style, with a browser test that the chip shows for the DM and not for a player. Built 2026-11-18, see 11.9. | V4 |
 | 5 | Login artwork carousel. | V7 |
 | On hold | Rarity field and colours. | Frozen |
 | Inside U2 / U3 | Portrait frames on cards, d20 dividers on the sheet. | U2, U3 |
@@ -479,11 +503,29 @@ Danger (red), success (green), the search highlight (yellow) and the "outdated" 
 ### 11.8 Read and Edit modes (decided and built 2026-11-18)
 
 Every entity page (characters, features, spells, items, rules, glossary, notes) has two modes, so a page is easy to read:
-- **Read** (the default): names, numbers and texts are plain text; long texts are shown formatted; empty fields are hidden, and a group with nothing filled in shows one faint line "Nothing filled in". Kind, campaigns and owner are one quiet line under the name. The DM sees who can see the page ("Seen by: …") but no visibility buttons.
+- **Read** (the default): names, numbers and texts are plain text; long texts are shown formatted; empty fields are hidden, and a group with nothing filled in shows one faint line "Nothing filled in". Kind, campaigns and owner are one quiet line under the name. The DM sees who can see the page and its parts as chips (section 11.9) but no visibility buttons.
 - **Edit**: the full editor as before, with every field, the visibility buttons, owner, kind, campaigns, sheet modules, custom sections, adding and removing links, translations and Delete.
 - An **Edit** button at the end of the search bar switches over; it becomes **Done** to go back. It shows only to people who may change something on the page.
 - Counters stay usable in Read mode: tick boxes, pips, pools and talent picks, so a sheet can be played without switching to Edit.
 - Every page opens in Read. A page just created opens in Edit. Edit stays on until another page is opened.
+
+### 11.9 DM-only style (decided and built 2026-11-18, task V4)
+
+For the DM only, what players cannot see is marked: a faint brass tint, a dashed brass outline and a chip saying who can see it. A player's browser receives no audience at all, so nothing is marked for players.
+
+Decisions (owner, 2026-11-18):
+1. **On a character sheet the measure is the character's own player.** Almost everything on a character is closed to other players already, so only a part that the owner cannot see is marked as secret: DM Secrets, the talent balance notes, and any section or field the DM narrowed. A part the DM opened to other players gets a quiet chip without tint ("Also seen by: Anna", "Also seen by: everyone"). Ordinary owner-and-DM pages are not marked.
+2. **Both modes.** While reading, the chip is a label. In Edit the same chip is the button that opens the "who can see this" choice; it replaces the amber eye button. A part with nothing set keeps a faint eye that opens the choice.
+3. **All lists.** Character cards, the lists of Features (table and folders), Spells, Items, Rules, Glossary and Notes, and the rows of features, spells and items on a character sheet.
+
+Rules that follow from them:
+- **A whole entity** (a list row, a card, the name line of a page) is marked when it is not open to everyone. The chip names who can see it: the owner first ("Anna (owner)"), then the chosen parties and players, or "DM only". A page open to everyone shows the quiet chip "Seen by: everyone" beside its name. On a character sheet the chip is beside the name in the header on every page; the choice itself stays under "Sheet settings".
+- **A section or field on a page that is not a character** is marked as secret when its audience is narrower than the page: the chip names the audience, or "DM only".
+- **The Features table** has little room, so its chip is only the icon, with who can see the feature as the tooltip.
+- **A character nobody owns** is the DM's: a part with chosen players is an opening ("Also seen by"), and a DM-only part is still marked as secret.
+- Sections inside a section had a dashed border before; it is now a plain line, so a dashed outline always means "players cannot see this".
+
+How it is sent: the list of entities gives each row its audience, and the links of an entity and the class features of a character give the owner and audience of the other end, to the DM only. A server test and the browser test `e2e/v4-dm-only.spec.ts` check that a player receives none of it.
 
 ## 12. Spells section like the Features section (decided 2026-11-18, not built)
 

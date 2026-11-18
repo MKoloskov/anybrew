@@ -1,6 +1,6 @@
 # AnyBrew Campaign Manager — Summary
 
-Last updated: 2026-11-18, after U3 (the focused character sheet). A commit is offered after each Summary update.
+Last updated: 2026-11-18, after U4a (Player Requests: the threads). A commit is offered after each Summary update.
 A short picture of the project as it stands. The full plan and every decision are in `PLAN.md`; open work is in `TODOs.md`; how to run the app is in `..\README.md`.
 
 ## What it is
@@ -15,7 +15,7 @@ Claude writes the code. The owner tests behaviour and does not read code, so aut
 |---|---|
 | `X:\Campaign Manager\anybrew` | The app: `server\` (API, database, visibility filter), `web\` (browser app), `e2e\` (browser tests). |
 | `anybrew\website docs` | `PLAN.md`, this summary, `TODOs.md`. |
-| `anybrew\server\data` | The database `anybrew.db`, uploaded pictures in `uploads`, backups in `backups` (database copies, and their pictures in `backups\uploads`). |
+| `anybrew\server\data` | The database `anybrew.db`, uploaded pictures in `uploads`, backups in `backups` (database copies, their pictures in `backups\uploads`, and the copies made before a schema change, `before-schema-…`). |
 | `X:\Campaign Manager\Chronica Exports` | The 15 Chronica JSON exports, the two English-name lists and the import report. |
 | `X:\Campaign Manager\Rules imports` | Class files converted from PDF handbooks (now: `Alternate Wizard.class.json`). |
 | `X:\Abyss\D&D Faerun Reboot` | The Obsidian vault: still the master copy for rules, spells and Elara's talent note. |
@@ -30,6 +30,7 @@ Claude writes the code. The owner tests behaviour and does not read code, so aut
 - **A character is closed to other players except its Preview.** A player who may see someone else's character receives the main portrait, name, allegiance, race, Open Character History and the kind (PC, NPC, Aux). Everything else, including its features, spells, items and classes, goes to the owner and the DM. The DM can open a single section or field on one character.
 - **Character list:** a page of cards with All / PC / NPC / Aux tabs, tag chips, the campaign filter and a name search; PCs first, then NPCs, then Aux, alphabetical inside each. A card opens the character's sheet on its own page.
 - **Character sheet:** 16 pages with a menu on the right (a drop-down on a phone) and an address per page. Each viewer has only the pages they may see: the DM all 16, the owner all but DM Secrets, another player only the Preview. Inside a sheet the site navigation gives way to one "← Characters" button.
+- **Player Requests** are not entities: a request is a thread between one player and the DMs of a System, in its own two tables. The server sends a request only to its player and to the DMs.
 - **Change log:** every field edit is recorded with who, when, old and new value, and the DM can undo it.
 - **Bilingual:** English is the source. A Russian reader sees "English (Russian)" for names and labels, and full Russian translations of long texts. The app's own buttons stay English.
 - **Login:** invite link plus password, no email service. The DM resets passwords.
@@ -40,7 +41,8 @@ Claude writes the code. The owner tests behaviour and does not read code, so aut
 **Phase 0, Foundation — built, runs on the owner's PC.**
 Accounts by invite link, Systems with a switcher, roles, campaigns with their wall, parties, entity and link storage, change log with undo, the server-side visibility filter with tests, export and import of a whole System, a backup command.
 - **Pictures in the backup and the export (F3, 2026-11-18).** `npm run backup` copies the database and every new picture into one shared `backups\uploads` folder that is never pruned, so every database copy finds its pictures. The Data tab exports a ZIP file with the System and all its pictures (replaced ones too, so an undo still finds them), or a plain JSON file with "Include pictures" unticked. Importing a ZIP creates a new System with its pictures under new ids; old JSON files still import, without pictures. Only the DM can export.
-Missing: deployment to the VPS and the scheduled nightly backup with an off-server copy. Both wait for the server account and the domain.
+- **Schema versioning (F5, 2026-11-18).** Every System records the version of the schemas its data fits. A numbered list of schema changes (`server\src\schemas\versions.ts`) carries stored data along when a schema changes: values, audience overrides, translations, pictures and the change log follow a renamed, removed, moved or converted field. It runs on server start, after a full copy of the database to `backups\before-schema-v<n>-<time>.db`, and on import of an older export; data from a newer version of the app is refused. A schema change never shows a field to more people than before, and a change of who sees a field by default must be stated on purpose. A server test compares the schemas with an accepted snapshot of every id (`snapshot.json`) and fails, with the lines to write, when a schema changed without the matching entry. The live System is at version 0, the schemas of 2026-11-18.
+Missing: deployment to the VPS and the scheduled nightly backup with an off-server copy. Both come after the structure of the app is built (see "Order of work" below). Until then a nightly backup on the owner's PC is planned (F8, not built).
 
 **Phase 1, Character sheets — complete.**
 - Character sheet built from the Chronica stat groups, with formulas, tick boxes, pools, lists and tables; sheet search; custom sections and fields on a single character.
@@ -55,11 +57,13 @@ Missing: deployment to the VPS and the scheduled nightly backup with an off-serv
 - Glossary section with definitions on hover over sheet labels.
 - Portrait upload, rich text with clean-up on the server.
 
-**Look and theme, Slate & Brass — built 2026-11-18** (`PLAN.md` section 11, tasks V1, V2, V9).
+**Look and theme, Slate & Brass — built 2026-11-18, checked by the owner (V6)** (`PLAN.md` section 11, tasks V1, V2, V3, V4, V9).
 - A Light / Dark / System switch in the header, kept per device; the page opens in the right mode without a flash.
 - Slate greys with a brass accent, as named colours for both modes; a dark top bar with a brass line and a brass underline on the active tab; a brass line on sheet groups; small corners.
 - Fonts served from our own server: Source Sans 3 for text, Marcellus SC for names and headings, Spectral SC for the Russian letters in headings.
 - Read and Edit modes on every entity page: a page opens for reading (plain text, empty fields hidden); the Edit button opens the full editor and becomes Done. Counters (tick boxes, pips, pools, talent picks) stay usable while reading. A new page opens in Edit.
+- Section icons on the tabs (on a phone only the icons stay), a thin d20 as the logo mark and in empty lists, and a login page with a dark stone texture and a brass-framed card.
+- DM-only style (V4, `PLAN.md` section 11.9), waits for the owner's check (V10). For the DM, what players cannot see has a faint brass tint, a dashed brass outline and a chip saying who can see it ("DM only", "Anna (owner)", "Party 2"): list rows, character cards, the name line of a page, sections and fields, and the rows of features, spells and items on a character sheet. On a character only what its own player cannot see is marked; a part opened to other players has a quiet "Also seen by" chip. While reading the chip is a label; in Edit it is the button that opens the choice. A player's browser receives no audience, so players see no chip and no tint.
 
 **Character UX rework, server step (U1) — built 2026-11-18.**
 - The character sheet is divided into 16 pages in its schema; every section is filed on a page, and field ids did not change. The Combat page shows AC, HP, hit dice and initiative, which stay stored in Secondary Stats.
@@ -75,7 +79,7 @@ Missing: deployment to the VPS and the scheduled nightly backup with an off-serv
 - A card opens the character's sheet (U3).
 - Browser test `e2e/u2-character-list.spec.ts` covers the DM, the owner, another player of the campaign (Preview only, no tags) and a player of another campaign (sees nothing).
 
-**Focused character sheet (U3) — built 2026-11-18, waits for the owner's check (U3c).**
+**Focused character sheet (U3) — built 2026-11-18, checked by the owner (U3c).**
 - Inside a sheet the site navigation gives way to one "← Characters" button. A menu on the right (a drop-down on a phone) switches between the 16 pages; each page has its own address (`/s/<system>/characters/<id>/<page>`), so reload, Back and a shared link land on the same page.
 - The sheet opens on Home for the owner and the DM, and on Preview for another player, who has no other page unless the DM opened a part to them. A new character opens on Basic Info, in Edit. Every page opens in Read mode, also after Edit was on for the page before.
 - A header above every page: the main portrait in its brass frame (or the first letter), the name, the kind, campaign and owner line, and a d20 divider.
@@ -86,19 +90,36 @@ Missing: deployment to the VPS and the scheduled nightly backup with an off-serv
 - The portrait gallery on Basic Info: framed pictures with the main one marked, a large view with arrow keys, "Make main" and "Remove", several pictures at once or dropped, up to 30.
 - Browser test `e2e/u3-sheet-pages.spec.ts` (DM, owner on a phone, another player); the older sheet tests were rewritten for the pages.
 
+**Player Requests, the threads (U4a) — built 2026-11-18, waits for the owner's check (U4c).**
+- "Requests" is a tab for everyone, between Notes and People, with the count of open requests that wait for the reader: for the DM those whose last message is from the player, for the player those whose last message is from the DM. On a phone the count sits on the icon.
+- A player writes a request to the DM: a subject and a message in formatted text (bold, lists, headings, quotes, tables), cleaned on the server. The DM can also start a thread, addressed to one chosen player.
+- Both sides write further messages while the request is open. Nothing is changed after sending. Only the DM marks a request resolved, reopens it, or deletes it for good.
+- Two folders on both sides, Open and Archive (resolved), each with its count. A resolved request has no reply box.
+- A player sees only their own requests; another player gets "does not exist", also by the direct address. Every DM sees and answers all of them.
+- The requests of a player removed from the System stay for the DM, marked "former member", and no longer count as waiting; the player sees them again when added back.
+- Requests are part of the JSON and ZIP export and import. A request whose player has no account on the importing server is left out.
+- 14 server tests in `server/test/requests.test.ts`; browser test `e2e/u4-requests.spec.ts` (DM, a player on a phone, another player).
+- Not built: pictures in messages (U4b).
+
 **Chronica import — run once on 2026-11-16.**
 14 characters (6 filled in, 8 nearly empty), 88 features, 32 spells, 67 items, 3 notes, 193 links. Typed totals that differ from the computed ones are kept as a Bonus on the row. Details are in `Chronica Exports\Import report.md`.
 
 ## What is next
 
-**Character UX rework and Player Requests — decided 2026-11-17, U1 to U3 built** (`PLAN.md` section 10, tasks U3c to U10).
-- U3c: the owner checks the focused sheet on PC and phone (the list of what to check is in the task).
-- U4: Player Requests: a player writes to the DM in a thread, the DM answers and resolves it; Open and Archive folders for both sides. Model: Fable 5.2.
+**Order of work — decided 2026-11-18** (`PLAN.md` section 7): structure first, hosting after, players last.
+- First the structure of the whole app is built on the owner's PC, every section in its working shape, and some content is put in.
+- Then hosting: the VPS and domain (A1), deployment (F1) and the nightly off-server backup (F2).
+- Then the security review of the visibility filter (F6), and only after it are players invited.
+- Next on the foundation side: the nightly backup on the owner's PC (F8). Schema versioning (F5) is built.
+
+**Character UX rework and Player Requests — decided 2026-11-17, U1 to U4a built** (`PLAN.md` section 10, tasks U4c to U10).
+- U4c: the owner checks Player Requests as the DM and as a player, on PC and phone (the list of what to check is in the task).
+- U4b: pictures in messages: up to 10 pictures attached to a message, shown under its text, seen only by the request's player and the DMs, carried by the ZIP export. Model: Fable 5.2.
 - Later steps: the owner's design of the Preview page (U5) and Home (U6), Spells Known (U7), automatic Progression History (U8), Combat details (U9).
 
-**Rest of the look** (`PLAN.md` section 11, tasks V3, V4, V7). The samples are on the "AnyBrew Look Book" page (https://claude.ai/artifact/1i94FWp71kWs5kvnB3wQur).
-- First the owner checks the new look and Read / Edit modes on PC and phone, in both modes, with Russian reading on (V6).
-- Then: tab icons, a thin d20 as logo mark and in empty lists, a login page with a stone texture (V3); a visible "DM only" style for the DM (V4); later an artwork carousel on the login page (V7). Portrait frames are on the character cards (U2) and the sheet header, with d20 dividers on the sheet (U3); spell school colours come with S1 and S2.
+**Rest of the look** (`PLAN.md` section 11, tasks V10, V7). The samples are on the "AnyBrew Look Book" page (https://claude.ai/artifact/1i94FWp71kWs5kvnB3wQur).
+- First the owner checks the DM-only style on PC and phone, in both modes, and says whether the tint is strong enough (V10).
+- Later: an artwork carousel on the login page (V7). Portrait frames are on the character cards (U2) and the sheet header, with d20 dividers on the sheet (U3); spell school colours come with S1 and S2.
 - Not now: rarity colours on items (on hold) and a separate colour per System.
 
 **Spells section like Features — decided 2026-11-18, not built** (`PLAN.md` section 12, task S11).
@@ -118,10 +139,15 @@ Missing: deployment to the VPS and the scheduled nightly backup with an off-serv
 
 ## Open points
 
-- The VPS account and the domain are not bought yet; the exact address is not chosen. Proposed: Hetzner Cloud, Helsinki.
+- Schema changes cannot yet remove or rename a whole entity type; the schema check refuses it until that is built (F10).
+- The 88 features still store their old "Category" text from before the Type and Class split; nobody receives it (F9).
+- The VPS account and the domain are not bought yet, on purpose: hosting comes after the structure is built. The exact address is not chosen. Proposed: Hetzner Cloud, Helsinki.
+- Until hosting, the only copy of the data is on the owner's PC; the nightly backup to a second drive or a cloud folder (F8) is not set up yet and needs a target folder from the owner.
+- Where the "structure" ends is not written down yet: which sections must exist before hosting.
 - Imported characters have no owners and are visible to the DM only, because the export has no player names.
 - 12 English item names in `Chronica Exports\English names - added at import.md` wait for approval.
 - Picture files that were replaced or removed stay on disk (task F7); they are no longer served. The backup picture folder is never pruned either.
 - Class table values are shown on the sheet but do not fill sheet fields such as spell slots.
 - Home and Preview are first versions; their final design waits for the owner (U5, U6). On Home, empty values show as "–".
+- A new message in a request shows up within 10 seconds, with the regular refresh; there is no other notice, and inside a character sheet the count is not shown.
 - Frozen: generating images on the site. It needs a paid OpenAI API key.

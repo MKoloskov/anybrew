@@ -1,5 +1,5 @@
 import { TRPCError } from '@trpc/server';
-import { and, eq, inArray, isNull } from 'drizzle-orm';
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -18,12 +18,17 @@ import {
   members,
   parties,
   partyMembers,
+  requestMessages,
+  requests,
   systems,
   translations,
   users,
 } from '../db/schema';
 import { CARD_FIELDS } from '../schemas/character';
+import { assertKnownVersion, migrateSystem } from '../schemas/migrate';
+import { currentSchemaVersion } from '../schemas/versions';
 import { authedProcedure, requireDm, router, viewerFor } from '../trpc';
+import { cleanHtml } from '../richtext';
 import { cardFieldsOf } from './entity';
 
 const INVITE_DAYS = 14;
@@ -67,7 +72,7 @@ export const systemRouter = router({
     if (!runsOne) throw new TRPCError({ code: 'FORBIDDEN' });
     const id = nanoid();
     ctx.db.transaction((tx) => {
-      tx.insert(systems).values({ id, name: input.name, createdAt: Date.now() }).run();
+      tx.insert(systems).values({ id, name: input.name, schemaVersion: currentSchemaVersion(), createdAt: Date.now() }).run();
       tx.insert(members).values({ systemId: id, userId: ctx.user.id, role: 'dm' }).run();
     });
     return { systemId: id };
@@ -374,6 +379,8 @@ export const exportSchema = z.object({
   format: z.literal(EXPORT_FORMAT),
   version: z.literal(EXPORT_VERSION),
   exportedAt: z.string(),
+  // The version of the schemas the data fits (schemas/versions.ts). Files from before versioning are at 0.
+  schemaVersion: z.number().int().min(0).default(0),
   // Settings arrived after the first exports were made, so a file without them still imports.
   system: z.object({ id: z.string(), name: z.string(), createdAt: z.number(), settings: z.object({ cardFields: z.array(z.string()).optional() }).default({}) }),
   members: z.array(z.object({ userId: z.string(), username: z.string(), displayName: z.string(), role: z.enum(['dm', 'player']) })),
@@ -435,6 +442,22 @@ export const exportSchema = z.object({
       }),
     )
     .default([]),
+  // Player Requests arrived after the first exports were made, so a file without them still imports.
+  requests: z
+    .array(
+      z.object({
+        id: z.string(),
+        playerId: z.string(),
+        subject: z.string(),
+        status: z.enum(['open', 'resolved']),
+        createdBy: z.string(),
+        createdAt: z.number(),
+        updatedAt: z.number(),
+        resolvedAt: z.number().nullable(),
+        messages: z.array(z.object({ id: z.string(), authorId: z.string(), body: z.string(), createdAt: z.number() })),
+      }),
+    )
+    .default([]),
   changes: z.array(
     z.object({
       entityId: z.string(),
@@ -454,10 +477,20 @@ export function buildExport(db: DB, id: string): SystemExport {
   const system = db.select().from(systems).where(eq(systems.id, id)).get()!;
   const strip = <T extends { systemId: string }>({ systemId: _c, ...rest }: T) => rest;
   const entityRows = db.select().from(entities).where(eq(entities.systemId, id)).all();
+  const requestRows = db.select().from(requests).where(eq(requests.systemId, id)).orderBy(requests.createdAt).all();
+  const messageRows = requestRows.length
+    ? db
+        .select()
+        .from(requestMessages)
+        .where(inArray(requestMessages.requestId, requestRows.map((r) => r.id)))
+        .orderBy(requestMessages.createdAt, sql`rowid`)
+        .all()
+    : [];
   return {
     format: EXPORT_FORMAT,
     version: EXPORT_VERSION,
     exportedAt: new Date().toISOString(),
+    schemaVersion: system.schemaVersion,
     system,
     members: db
       .select({ userId: users.id, username: users.username, displayName: users.displayName, role: members.role })
@@ -473,6 +506,10 @@ export function buildExport(db: DB, id: string): SystemExport {
       ? db.select().from(translations).where(inArray(translations.entityId, entityRows.map((e) => e.id))).all()
       : [],
     files: db.select().from(files).where(eq(files.systemId, id)).orderBy(files.createdAt).all().map(strip),
+    requests: requestRows.map((r) => ({
+      ...strip(r),
+      messages: messageRows.filter((m) => m.requestId === r.id).map(({ requestId: _r, ...rest }) => rest),
+    })),
     changes: db
       .select()
       .from(changes)
@@ -484,7 +521,7 @@ export function buildExport(db: DB, id: string): SystemExport {
 }
 
 /**
- * Imports into a brand-new system. Every system, campaign, party, entity and link id is replaced
+ * Imports into a brand-new system. Every system, campaign, party, entity, link, request and message id is replaced
  * with a fresh one across the whole document, so references inside values stay consistent
  * and nothing collides with the system the export came from.
  *
@@ -498,6 +535,12 @@ export function importSystem(
   importerId: string,
   pictures?: { dir: string; bytes: Map<string, Uint8Array> },
 ): string {
+  // A file from a newer version of the app holds data this version has no schemas for.
+  try {
+    assertKnownVersion(source.schemaVersion, 'This export');
+  } catch (e) {
+    throw new TRPCError({ code: 'BAD_REQUEST', message: (e as Error).message });
+  }
   const picturesIn = source.files.filter((f) => IMAGE_TYPES[f.mime] && pictures?.bytes.has(f.id));
   const oldIds = [
     source.system.id,
@@ -505,6 +548,7 @@ export function importSystem(
     ...source.parties.map((p) => p.id),
     ...source.entities.map((e) => e.id),
     ...source.links.map((l) => l.id),
+    ...source.requests.flatMap((r) => [r.id, ...r.messages.map((m) => m.id)]),
     ...picturesIn.map((f) => f.id),
   ];
   const newIds = new Map(oldIds.map((oldId) => [oldId, nanoid()]));
@@ -550,6 +594,7 @@ function insertImport(db: DB, data: SystemExport, importerId: string, fileRows: 
         id: newSystemId,
         name: nameTaken ? `${data.system.name} (imported)` : data.system.name,
         settings: { cardFields: data.system.settings.cardFields ?? [] },
+        schemaVersion: data.schemaVersion,
         createdAt: Date.now(),
       })
       .run();
@@ -580,5 +625,17 @@ function insertImport(db: DB, data: SystemExport, importerId: string, fileRows: 
         .values({ ...c, target: c.target as (typeof changes.$inferInsert)['target'], systemId: newSystemId })
         .run();
     for (const f of fileRows) tx.insert(files).values(f).run();
+    // The file may be older than the schemas in the code: its data is brought up to date like any System.
+    migrateSystem(tx, newSystemId, data.schemaVersion);
+
+    // A request belongs to a player's account. It comes in when that account exists on this server
+    // and is not a DM of the new System (the importer is one); otherwise it is left out, like the membership.
+    const dms = new Set(tx.select().from(members).where(and(eq(members.systemId, newSystemId), eq(members.role, 'dm'))).all().map((m) => m.userId));
+    for (const { messages, ...r } of data.requests) {
+      if (!knownUsers.has(r.playerId) || dms.has(r.playerId)) continue;
+      tx.insert(requests).values({ ...r, systemId: newSystemId }).run();
+      // Cleaned again: an export file can be edited by hand, and message text is shown as it is stored.
+      for (const m of messages) tx.insert(requestMessages).values({ ...m, requestId: r.id, body: cleanHtml(m.body) }).run();
+    }
   });
 }
