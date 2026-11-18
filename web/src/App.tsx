@@ -20,6 +20,10 @@ export function App() {
           <LoginPage />
         ) : (
           <Switch>
+            {/* A page of the character sheet has its own address, so Back, reload and a shared link land on it. */}
+            <Route path="/s/:systemId/:tab/:entityId/:page">
+              {(params) => <SystemPage systemId={params.systemId} tab={params.tab} entityId={params.entityId} page={params.page} user={user} />}
+            </Route>
             <Route path="/s/:systemId/:tab?/:entityId?">
               {(raw) => {
                 // wouter cannot infer types for a path with two optional parts.

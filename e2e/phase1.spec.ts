@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import path from 'node:path';
+import { openPage } from './sheet-pages';
 
 const shots = path.resolve(import.meta.dirname, 'screenshots');
 
@@ -55,6 +56,28 @@ test('phase 1: Russian names and texts, glossary, custom fields, talent tree, pi
   await dm.getByLabel('Russian name').fill('Эстер Силверхенд');
   await dm.getByLabel('Russian name').blur();
 
+  // ---- A picture ----
+  await dm.locator('input[type=file]').setInputFiles({ name: 'portrait.png', mimeType: 'image/png', buffer: PNG });
+  const portrait = dm.getByRole('img', { name: 'Main picture' });
+  await expect(portrait).toBeVisible();
+  await expect.poll(() => portrait.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(2);
+
+  // ---- A section that only this character has ----
+  await dm.getByLabel('New section name').fill('Limited Abilities');
+  await dm.getByRole('button', { name: 'Add section' }).click();
+  await dm.getByLabel('New field name in Limited Abilities').fill('Bardic Inspiration');
+  await dm.getByRole('button', { name: 'Add field' }).click();
+  // The section itself is on Hero Abilities.
+  await openPage(dm, 'Hero Abilities', true);
+  await expect(dm.getByRole('button', { name: /^. Limited Abilities$/ })).toBeVisible();
+  const bardic = dm.locator('div.match-target', { hasText: 'Bardic Inspiration' }).first();
+  await bardic.getByLabel('Maximum').fill('3');
+  await bardic.getByLabel('Maximum').blur();
+  await bardic.getByRole('button', { name: '2 of 3' }).click();
+  await expect(bardic.getByText('2 of')).toBeVisible();
+
+  // ---- The description, on Open Character History ----
+  await openPage(dm, 'Open Character History', true);
   const description = dm.getByRole('textbox', { name: 'Description', exact: true });
   await description.click();
   await dm.keyboard.type('A moon elf of ');
@@ -71,26 +94,11 @@ test('phase 1: Russian names and texts, glossary, custom fields, talent tree, pi
   await dm.getByRole('button', { name: 'Hide Russian translation' }).click();
   await expect(dm.getByRole('button', { name: 'Edit Russian translation' })).toBeVisible();
 
-  // ---- A picture ----
-  await dm.locator('input[type=file]').setInputFiles({ name: 'portrait.png', mimeType: 'image/png', buffer: PNG });
-  const portrait = dm.getByRole('img', { name: 'Main picture' });
-  await expect(portrait).toBeVisible();
-  await expect.poll(() => portrait.evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(2);
-
-  // ---- A section that only this character has ----
-  await dm.getByLabel('New section name').fill('Limited Abilities');
-  await dm.getByRole('button', { name: 'Add section' }).click();
-  await dm.getByLabel('New field name in Limited Abilities').fill('Bardic Inspiration');
-  await dm.getByRole('button', { name: 'Add field' }).click();
-  await expect(dm.getByRole('button', { name: /^. Limited Abilities$/ })).toBeVisible();
-  const bardic = dm.locator('div.match-target', { hasText: 'Bardic Inspiration' }).first();
-  await bardic.getByLabel('Maximum').fill('3');
-  await bardic.getByLabel('Maximum').blur();
-  await bardic.getByRole('button', { name: '2 of 3' }).click();
-  await expect(bardic.getByText('2 of')).toBeVisible();
-
   // ---- The talent tree, loaded from the text of the note ----
-  await dm.getByLabel('Talent tree', { exact: true }).click();
+  // The module is ticked under "Sheet settings" on Basic Info; the tree is on Class Abilities.
+  await openPage(dm, 'Basic Info', true);
+  await dm.locator('[data-sheet-settings]').getByLabel('Talent tree', { exact: true }).click();
+  await openPage(dm, 'Class Abilities', true);
   await dm.getByRole('button', { name: 'Load from the note…' }).click();
   await dm.getByLabel('Talent note text').fill(NOTE);
   await dm.getByRole('button', { name: 'Load', exact: true }).click();
@@ -107,13 +115,20 @@ test('phase 1: Russian names and texts, glossary, custom fields, talent tree, pi
 
   // ---- Reading in Russian ----
   await dm.getByLabel('Reading language').selectOption('ru');
-  await expect(dm.getByRole('link', { name: /Esther Silverhand \(Эстер Силверхенд\)/ })).toBeVisible();
+  // The card on the list carries both names; the sheet then reads in Russian.
+  await dm.getByRole('link', { name: '← Characters' }).click();
+  await dm.getByRole('link', { name: /Esther Silverhand \(Эстер Силверхенд\)/ }).click();
+  // Opened from the list the sheet is on Home, in Read mode; the checks below use the editor.
+  await expect(dm).toHaveURL(/\/home$/);
+  await openPage(dm, 'Stats', true);
   await expect(dm.getByText('Strength (STR) (Сила)')).toBeVisible();
+  await openPage(dm, 'Skills', true);
   // The skill label is a glossary term: Russian form after it, definition on hover.
   const perception = dm.locator('span[title]', { hasText: 'Perception (WIS) (Наблюдательность)' });
   await expect(perception).toBeVisible();
   await expect(perception).toHaveAttribute('title', /How well a character notices things/);
   // The description is shown in Russian, with a way back to the original.
+  await openPage(dm, 'Open Character History', true);
   await expect(dm.getByText('Лунная эльфийка').first()).toBeVisible();
   await dm.getByRole('button', { name: 'Show original' }).click();
   await expect(dm.getByRole('textbox', { name: 'Description', exact: true })).toContainText('A moon elf of 120 years');

@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import path from 'node:path';
+import { openPage } from './sheet-pages';
 
 const shots = path.resolve(import.meta.dirname, 'screenshots');
 
@@ -36,34 +37,37 @@ test('library: a feature and an item are added to a character from its sheet', a
   // ---- On the character ----
   await dm.getByRole('link', { name: 'Characters', exact: true }).click();
   await dm.getByRole('link', { name: /Esther Silverhand/ }).click();
-  await dm.getByRole('button', { name: 'Edit', exact: true }).click();
-  const features = dm.locator('[data-links="Features"]');
+  // Metamagic is a Sorcerer class feature, so it is listed on Class Abilities; items on Inventory.
+  await openPage(dm, 'Class Abilities', true);
+  const features = dm.locator('[data-links="Class features"]');
   await features.getByRole('button', { name: '+ Add feature' }).click();
-  await features.getByLabel('Features to add').selectOption({ label: 'Metamagic' });
+  await features.getByLabel('Class features to add').selectOption({ label: 'Metamagic' });
   await features.getByRole('button', { name: 'Add', exact: true }).click();
   await expect(features.locator('[data-link="Metamagic"]')).toContainText('[3]');
   await expect(features.getByText('Sorcerer features')).toBeVisible();
 
+  await openPage(dm, 'Inventory', true);
   const items = dm.locator('[data-links="Items"]');
   await items.getByRole('button', { name: '+ Add item' }).click();
   await items.getByLabel('Items to add').selectOption({ label: 'Potion of Healing' });
   await items.getByLabel('Quantity').fill('3');
   await items.getByRole('button', { name: 'Add', exact: true }).click();
   await expect(items.locator('[data-link="Potion of Healing"]')).toContainText('× 3');
-  await features.scrollIntoViewIfNeeded();
   await dm.screenshot({ path: path.join(shots, 'phase2-linked.png'), fullPage: true });
 
   // The name opens the library page, which shows who has it.
+  await openPage(dm, 'Class Abilities');
   await features.getByRole('link', { name: 'Metamagic' }).click();
   await expect(dm.getByRole('heading', { name: 'Metamagic' })).toBeVisible();
   await expect(dm.getByText('Characters that have it')).toBeVisible();
   await dm.getByRole('link', { name: /Esther Silverhand/ }).last().click();
   await expect(dm.getByRole('heading', { name: 'Esther Silverhand' })).toBeVisible();
-  await dm.getByRole('button', { name: 'Edit', exact: true }).click();
 
   // Removing it from the character leaves it in the library.
-  await dm.locator('[data-links="Features"]').getByRole('button', { name: 'Remove Metamagic' }).click();
-  await expect(dm.locator('[data-links="Features"]').locator('[data-link="Metamagic"]')).toHaveCount(0);
+  await openPage(dm, 'Class Abilities', true);
+  await features.getByRole('button', { name: 'Remove Metamagic' }).click();
+  await expect(features.locator('[data-link="Metamagic"]')).toHaveCount(0);
+  await dm.getByRole('link', { name: '← Characters' }).click();
   await dm.getByRole('link', { name: 'Features', exact: true }).click();
   await expect(dm.getByRole('link', { name: /Metamagic/ })).toBeVisible();
 });
@@ -141,7 +145,7 @@ test('features: the table filters and sorts, folders file by class, and a featur
   await expect(dm.locator('[data-features="table"]')).toBeVisible();
 });
 
-test('characters: filed by campaign, then PC, NPC and Aux', async ({ browser }) => {
+test('characters: an Aux character is listed among the Aux', async ({ browser }) => {
   const context = await browser.newContext();
   const dm = await context.newPage();
   dm.on('dialog', (d) => d.accept());
@@ -153,12 +157,13 @@ test('characters: filed by campaign, then PC, NPC and Aux', async ({ browser }) 
   await dm.getByPlaceholder('New character…').fill('Gate Guard');
   await dm.getByRole('button', { name: 'Add', exact: true }).click();
   await expect(dm.getByLabel('Name', { exact: true })).toHaveValue('Gate Guard');
-  await dm.getByRole('button', { name: 'Aux', exact: true }).click();
+  // Kind is chosen under "Sheet settings" at the bottom of Basic Info.
+  await dm.locator('[data-sheet-settings]').getByRole('button', { name: 'Aux', exact: true }).click();
   await expect(dm.locator('[data-kind="aux"]')).toBeVisible();
 
-  // The new character sits in an Aux folder, apart from the others.
-  const aux = dm.locator('[data-folder="Aux"]').filter({ has: dm.locator('[data-entity="Gate Guard"]') });
-  await expect(aux.first()).toBeVisible();
-  await expect(dm.locator('[data-folder="PC"] [data-entity="Gate Guard"], [data-folder="NPC"] [data-entity="Gate Guard"]')).toHaveCount(0);
+  // Back on the list, the new character sits among the Aux, apart from the others.
+  await dm.getByRole('link', { name: '← Characters' }).click();
+  await expect(dm.locator('[data-kind-group="aux"] [data-entity="Gate Guard"]')).toBeVisible();
+  await expect(dm.locator('[data-kind-group="pc"] [data-entity="Gate Guard"], [data-kind-group="npc"] [data-entity="Gate Guard"]')).toHaveCount(0);
   await dm.screenshot({ path: path.join(shots, 'characters-folders.png'), fullPage: true });
 });

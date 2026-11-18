@@ -1,6 +1,6 @@
 # AnyBrew Campaign Manager — Summary
 
-Last updated: 2026-11-18, after F3 (pictures in the backup and the export). A commit is offered after each Summary update.
+Last updated: 2026-11-18, after U3 (the focused character sheet). A commit is offered after each Summary update.
 A short picture of the project as it stands. The full plan and every decision are in `PLAN.md`; open work is in `TODOs.md`; how to run the app is in `..\README.md`.
 
 ## What it is
@@ -29,6 +29,7 @@ Claude writes the code. The owner tests behaviour and does not read code, so aut
 - **Visibility** is set on an entity, a group or a field (DM only, chosen players, chosen parties, all) and is enforced on the server: hidden data is never sent to the browser.
 - **A character is closed to other players except its Preview.** A player who may see someone else's character receives the main portrait, name, allegiance, race, Open Character History and the kind (PC, NPC, Aux). Everything else, including its features, spells, items and classes, goes to the owner and the DM. The DM can open a single section or field on one character.
 - **Character list:** a page of cards with All / PC / NPC / Aux tabs, tag chips, the campaign filter and a name search; PCs first, then NPCs, then Aux, alphabetical inside each. A card opens the character's sheet on its own page.
+- **Character sheet:** 16 pages with a menu on the right (a drop-down on a phone) and an address per page. Each viewer has only the pages they may see: the DM all 16, the owner all but DM Secrets, another player only the Preview. Inside a sheet the site navigation gives way to one "← Characters" button.
 - **Change log:** every field edit is recorded with who, when, old and new value, and the DM can undo it.
 - **Bilingual:** English is the source. A Russian reader sees "English (Russian)" for names and labels, and full Russian translations of long texts. The app's own buttons stay English.
 - **Login:** invite link plus password, no email service. The DM resets passwords.
@@ -71,22 +72,33 @@ Missing: deployment to the VPS and the scheduled nightly backup with an off-serv
 - "Characters" is a full-width page of cards: main portrait in a thin brass frame (or the first letter of the name), the name in both languages, allegiance, and the further fields the DM ticks under "Card fields…" (race, class, level, kind, status, disposition, owner, campaign, tags), one choice for everyone.
 - Tabs All / PC / NPC / Aux with counts that follow the other filters; tag chips (a character must have every ticked tag); campaign filter; name search in English or Russian; "Reset filters". Each viewer's tab, tags, campaign and search are kept in their own browser.
 - Order: PCs, then NPCs, then Aux, alphabetical inside each; on All each kind has a small heading. The old folders by campaign and kind are gone.
-- A card opens today's sheet on its own page with a "← Characters" button; the site navigation stays until U3. The sheet opens in Read mode.
+- A card opens the character's sheet (U3).
 - Browser test `e2e/u2-character-list.spec.ts` covers the DM, the owner, another player of the campaign (Preview only, no tags) and a player of another campaign (sees nothing).
+
+**Focused character sheet (U3) — built 2026-11-18, waits for the owner's check (U3c).**
+- Inside a sheet the site navigation gives way to one "← Characters" button. A menu on the right (a drop-down on a phone) switches between the 16 pages; each page has its own address (`/s/<system>/characters/<id>/<page>`), so reload, Back and a shared link land on the same page.
+- The sheet opens on Home for the owner and the DM, and on Preview for another player, who has no other page unless the DM opened a part to them. A new character opens on Basic Info, in Edit. Every page opens in Read mode, also after Edit was on for the page before.
+- A header above every page: the main portrait in its brass frame (or the first letter), the name, the kind, campaign and owner line, and a d20 divider.
+- Home (first version): class and level, tiles for Level, Armor Class, Hit Points, Initiative and Proficiency, the six abilities, the tags. Preview (first version): the main portrait large, Allegiance, Race, Open Character History.
+- Features are split onto Class, Subclass and Hero Abilities (a feature naming a subclass goes to Subclass, another class feature to Class, everything else to Hero); items are on Inventory, spells on Spells Known. Each "+ Add" offers only what belongs on its page.
+- "Sheet settings" at the bottom of Basic Info: who can see the sheet, owner, kind, campaigns, sheet modules, custom sections, History, Delete.
+- The search works across pages: the open page shows its matches, and the menu shows the count of every other page.
+- The portrait gallery on Basic Info: framed pictures with the main one marked, a large view with arrow keys, "Make main" and "Remove", several pictures at once or dropped, up to 30.
+- Browser test `e2e/u3-sheet-pages.spec.ts` (DM, owner on a phone, another player); the older sheet tests were rewritten for the pages.
 
 **Chronica import — run once on 2026-11-16.**
 14 characters (6 filled in, 8 nearly empty), 88 features, 32 spells, 67 items, 3 notes, 193 links. Typed totals that differ from the computed ones are kept as a Bonus on the row. Details are in `Chronica Exports\Import report.md`.
 
 ## What is next
 
-**Character UX rework and Player Requests — decided 2026-11-17, U1 and U2 built** (`PLAN.md` section 10, tasks U3 to U10).
-- U3: the character sheet gets full focus: the site navigation gives way to one "← Characters" button, and a right-hand menu switches between the 16 pages (Home, Preview, Basic Info, Stats, Skills, Class, Subclass and Hero Abilities, Inventory, Spells Known, Progression History, Open Character History, Character Secrets, DM Secrets, Char Notes, Combat).
-- U4: Player Requests: a player writes to the DM in a thread, the DM answers and resolves it; Open and Archive folders for both sides.
-- Models: U3 with Opus 5.5 (medium), U4 with Fable 5.2. Later steps: the owner's design of the Preview page (U5), Home, Spells Known, automatic Progression History, Combat details.
+**Character UX rework and Player Requests — decided 2026-11-17, U1 to U3 built** (`PLAN.md` section 10, tasks U3c to U10).
+- U3c: the owner checks the focused sheet on PC and phone (the list of what to check is in the task).
+- U4: Player Requests: a player writes to the DM in a thread, the DM answers and resolves it; Open and Archive folders for both sides. Model: Fable 5.2.
+- Later steps: the owner's design of the Preview page (U5) and Home (U6), Spells Known (U7), automatic Progression History (U8), Combat details (U9).
 
 **Rest of the look** (`PLAN.md` section 11, tasks V3, V4, V7). The samples are on the "AnyBrew Look Book" page (https://claude.ai/artifact/1i94FWp71kWs5kvnB3wQur).
 - First the owner checks the new look and Read / Edit modes on PC and phone, in both modes, with Russian reading on (V6).
-- Then: tab icons, a thin d20 as logo mark and in empty lists, a login page with a stone texture (V3); a visible "DM only" style for the DM (V4); later an artwork carousel on the login page (V7). Portrait frames are on the character cards (U2); the sheet header frame and d20 dividers come with U3; spell school colours with S1 and S2.
+- Then: tab icons, a thin d20 as logo mark and in empty lists, a login page with a stone texture (V3); a visible "DM only" style for the DM (V4); later an artwork carousel on the login page (V7). Portrait frames are on the character cards (U2) and the sheet header, with d20 dividers on the sheet (U3); spell school colours come with S1 and S2.
 - Not now: rarity colours on items (on hold) and a separate colour per System.
 
 **Spells section like Features — decided 2026-11-18, not built** (`PLAN.md` section 12, task S11).
@@ -111,4 +123,5 @@ Missing: deployment to the VPS and the scheduled nightly backup with an off-serv
 - 12 English item names in `Chronica Exports\English names - added at import.md` wait for approval.
 - Picture files that were replaced or removed stay on disk (task F7); they are no longer served. The backup picture folder is never pruned either.
 - Class table values are shown on the sheet but do not fill sheet fields such as spell slots.
+- Home and Preview are first versions; their final design waits for the owner (U5, U6). On Home, empty values show as "–".
 - Frozen: generating images on the site. It needs a paid OpenAI API key.

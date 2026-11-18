@@ -99,6 +99,43 @@
   }
 }
 
+/* Engraved portrait frame: a thin brass line set just inside the edge of the picture. */
+.portrait-frame {
+  position: relative;
+}
+.portrait-frame::after {
+  content: '';
+  position: absolute;
+  inset: 5px;
+  border: 1px solid var(--c-accent);
+  opacity: 0.85;
+  pointer-events: none;
+}
+
+/* Login, setup and invite pages: a dark slate stone texture drawn with SVG noise, the same in both modes. */
+.stone {
+  background-color: #12151b;
+  background-image:
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1600' height='1000'%3E%3Cfilter id='s'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.012 .02' numOctaves='5' seed='3'/%3E%3CfeColorMatrix values='0 0 0 0 .62 0 0 0 0 .66 0 0 0 0 .74 0 0 0 .42 -.08'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23s)'/%3E%3C/svg%3E"),
+    radial-gradient(120% 90% at 50% 0%, #2b3140 0%, #12151b 70%);
+  /* One large drawing over the whole page: a repeated tile shows seams. */
+  background-size: cover;
+  background-position: center;
+  background-repeat: no-repeat;
+  background-attachment: fixed;
+}
+/* The card on the stone: a brass edge with a second thin brass line set just inside it. */
+.login-card {
+  background: var(--c-surface);
+  color: var(--c-fg);
+  border: 1px solid var(--c-accent);
+  border-radius: 4px;
+  box-shadow:
+    inset 0 0 0 3px var(--c-surface),
+    inset 0 0 0 4px rgb(212 166 86 / 0.45),
+    0 18px 40px rgb(0 0 0 / 0.4);
+}
+
 /* Sheet search: every match is tinted, the one the view jumped to gets a ring. */
 .match-target[data-match] {
   background-color: rgb(253 224 71 / 0.35);

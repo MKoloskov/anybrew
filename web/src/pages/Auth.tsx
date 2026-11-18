@@ -1,15 +1,21 @@
 import { useState } from 'react';
 import { useLocation } from 'wouter';
 import { Centered } from '../App';
+import { D20 } from '../components/Icons';
 import { trpc } from '../trpc';
 
 type User = { id: string; displayName: string } | null;
 
+// The pages before login: a dark stone texture in both modes with a brass-framed card on it (PLAN.md section 11.5).
 function Shell({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="flex min-h-dvh items-center justify-center p-4">
-      <div className="card w-full max-w-sm p-6">
-        <h1 className="display mb-4 text-2xl">{title}</h1>
+    <div className="stone flex min-h-dvh items-center justify-center p-4" data-login-page>
+      <div className="login-card w-full max-w-sm p-6">
+        <div className="display mb-3 flex items-center justify-center gap-2 text-xl">
+          <D20 className="size-6 text-accent" />
+          AnyBrew
+        </div>
+        <h1 className="display mb-4 text-center text-2xl">{title}</h1>
         {children}
       </div>
     </div>

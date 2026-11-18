@@ -287,9 +287,9 @@ One language, TypeScript, on the server and in the browser, because the owner do
 
 **Alternative considered:** PostgreSQL instead of SQLite. It handles many simultaneous writers better, but adds a second service to run and back up. Not needed at this size; moving later is possible because all database access goes through Drizzle.
 
-## 10. Character UX rework and Player Requests (decided 2026-11-17; U1, U2 and step 1 of U3 built 2026-11-18)
+## 10. Character UX rework and Player Requests (decided 2026-11-17; U1, U2 and U3 built 2026-11-18)
 
-Ordered by the owner on 2026-11-17. The server step (U1), the character list (U2) and step 1 of the focused sheet (U3: page menu, page addresses, feature split, Sheet settings, search counts per page) are built; step 2 of U3 (Home, Preview, gallery screen, header frame) and Player Requests (U4) are not. The owner's answers to the open questions are in 10.7; the tasks are U1 to U10 in `TODOs.md`.
+Ordered by the owner on 2026-11-17. The server step (U1), the character list (U2) and the focused sheet (U3, both steps: page menu, page addresses, feature split, Sheet settings, search counts per page, header with the framed portrait and a d20 divider, first versions of Home and Preview, the gallery screen) are built; Player Requests (U4) are not. The owner's check of U3 is task U3c. The owner's answers to the open questions are in 10.7; the tasks are U1 to U10 in `TODOs.md`.
 It concerns characters only for now. Other sections (Features, Spells, Items…) keep the current list-beside-editor layout and may follow later.
 
 ### 10.1 Two levels: list, then sheet

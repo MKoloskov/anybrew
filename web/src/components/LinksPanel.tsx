@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Link } from 'wouter';
-import { featureHeading } from '../features';
+import { featureHeading, featurePart, type SheetPart } from '../features';
 import { useBilingual } from '../lang';
 import { tabOfType } from '../tabs';
 import { trpc, type Out } from '../trpc';
@@ -15,13 +15,30 @@ const LINKABLE = [
 ];
 const CIRCLE = (n: number) => (n === 0 ? 'Cantrips' : `Circle ${n}`);
 
-type Props = { entityId: string; systemId: string; typeKey: string; canEdit: boolean; canAddHolders: boolean };
+type Props = {
+  entityId: string;
+  systemId: string;
+  typeKey: string;
+  canEdit: boolean;
+  canAddHolders: boolean;
+  /** On a page of the character sheet: only the part that belongs on that page. */
+  part?: SheetPart;
+};
+
+// Each page of the sheet lists one part of what the character has.
+const PART_SECTION: Record<SheetPart, { typeKey: string; title: string }> = {
+  class: { typeKey: 'feature', title: 'Class features' },
+  subclass: { typeKey: 'feature', title: 'Subclass features' },
+  hero: { typeKey: 'feature', title: 'Hero features' },
+  items: { typeKey: 'item', title: 'Items' },
+  spells: { typeKey: 'spell', title: 'Spells' },
+};
 
 /**
  * On a character: its features, spells and items, each opening its own page.
  * On a feature, spell or item: the characters that have it.
  */
-export function LinksPanel({ entityId, systemId, typeKey, canEdit, canAddHolders }: Props) {
+export function LinksPanel({ entityId, systemId, typeKey, canEdit, canAddHolders, part }: Props) {
   const utils = trpc.useUtils();
   const links = trpc.entity.links.useQuery({ id: entityId }, { refetchInterval: 10_000 });
   const refresh = () => {
@@ -104,10 +121,16 @@ export function LinksPanel({ entityId, systemId, typeKey, canEdit, canAddHolders
     );
   }
 
+  // Features are split over three pages: class, subclass, and everything else.
+  const inPart = (info: LinkRow['other']['info']) => !part || PART_SECTION[part].typeKey !== 'feature' || featurePart(info) === part;
+  const sections = part
+    ? LINKABLE.filter((x) => x.typeKey === PART_SECTION[part].typeKey).map((x) => ({ ...x, title: PART_SECTION[part].title }))
+    : LINKABLE;
+
   return (
     <>
-      {LINKABLE.map((section) => {
-        const mine = rows.filter((l) => l.direction === 'out' && l.kind === section.kind && l.other.typeKey === section.typeKey);
+      {sections.map((section) => {
+        const mine = rows.filter((l) => l.direction === 'out' && l.kind === section.kind && l.other.typeKey === section.typeKey && inPart(l.other.info));
         if (!mine.length && !canEdit) return null;
         // Features are grouped by their library section, spells by circle; items are one list.
         const groupOf = (l: LinkRow) =>
@@ -131,7 +154,17 @@ export function LinksPanel({ entityId, systemId, typeKey, canEdit, canAddHolders
                 </div>
               ))}
             </div>
-            {canEdit && <AddLink entityId={entityId} systemId={systemId} section={section} withQuantity={section.typeKey === 'item'} taken={new Set(mine.map((l) => l.other.id))} onAdded={refresh} />}
+            {canEdit && (
+              <AddLink
+                entityId={entityId}
+                systemId={systemId}
+                section={section}
+                withQuantity={section.typeKey === 'item'}
+                taken={new Set(mine.map((l) => l.other.id))}
+                accept={part ? inPart : undefined}
+                onAdded={refresh}
+              />
+            )}
           </section>
         );
       })}
@@ -142,11 +175,13 @@ export function LinksPanel({ entityId, systemId, typeKey, canEdit, canAddHolders
 type AddLinkProps = {
   entityId: string;
   systemId: string;
-  section: (typeof LINKABLE)[number];
+  section: { typeKey: string; kind: string; title: string };
   /** The entity on this page is what gets added to the chosen character, not the other way round. */
   reverse?: boolean;
   withQuantity: boolean;
   taken: Set<string>;
+  /** Only library entries that belong on this page of the sheet are offered. */
+  accept?: (info: LinkRow['other']['info']) => boolean;
   onAdded: () => void;
 };
 
@@ -171,7 +206,7 @@ function AddLink(props: AddLinkProps) {
         + Add {noun}
       </button>
     );
-  const free = (list.data ?? []).filter((x) => !props.taken.has(x.id));
+  const free = (list.data ?? []).filter((x) => !props.taken.has(x.id) && (!props.accept || props.accept(x.info)));
   return (
     <form
       className="mt-2 flex flex-wrap items-center gap-2"

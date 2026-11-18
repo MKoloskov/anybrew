@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import path from 'node:path';
+import { openPage } from './sheet-pages';
 
 const shots = path.resolve(import.meta.dirname, 'screenshots');
 
@@ -43,6 +44,7 @@ test('pages open for reading; Edit switches to the full editor; counters stay us
   await expect(editor).toHaveAttribute('data-editor', 'read');
 
   // ---- Counters stay usable while reading: inspiration boxes tick without Edit ----
+  await openPage(dm, 'Stats');
   const inspiration = editor.locator('div.match-target', { hasText: 'Inspiration' });
   await inspiration.getByRole('button', { name: '1 of 4' }).click();
   await expect(inspiration.getByRole('button', { name: '1 of 4' })).toHaveAttribute('aria-pressed', 'true');
@@ -51,11 +53,13 @@ test('pages open for reading; Edit switches to the full editor; counters stay us
   await dm.screenshot({ path: path.join(shots, 'read-character.png'), fullPage: true });
 
   // ---- A new page opens straight in Edit ----
+  await dm.getByRole('link', { name: '← Characters' }).click();
   await dm.getByPlaceholder('New character…').fill('Read Mode Tester');
   await dm.getByRole('button', { name: 'Add', exact: true }).click();
   await expect(editor).toHaveAttribute('data-editor', 'edit');
   await expect(editor.getByLabel('Name', { exact: true })).toHaveValue('Read Mode Tester');
   dm.once('dialog', (d) => d.accept());
-  await editor.getByRole('button', { name: 'Delete' }).click();
+  // Delete is under "Sheet settings" at the bottom of Basic Info, where a new character opens.
+  await editor.locator('[data-sheet-settings]').getByRole('button', { name: 'Delete' }).click();
   await context.close();
 });

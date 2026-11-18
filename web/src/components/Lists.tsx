@@ -33,59 +33,6 @@ function Folder(props: { id: string; title: string; count: number; depth?: numbe
   );
 }
 
-// ---------- Characters: campaign, then PC / NPC / Aux ----------
-
-const KINDS = [
-  { key: 'pc', title: 'PC' },
-  { key: 'npc', title: 'NPC' },
-  { key: 'aux', title: 'Aux' },
-];
-/** A character with no kind chosen counts as a PC when a player owns it, otherwise as an NPC. */
-export const kindOf = (e: ListRow) => (KINDS.some((k) => k.key === e.info.kind) ? e.info.kind! : e.ownerId ? 'pc' : 'npc');
-
-type CharacterFoldersProps = {
-  system: System;
-  rows: ListRow[];
-  /** A campaign id narrows the list to that campaign, 'none' to characters outside campaigns, '' shows all. */
-  filter: string;
-  renderRow: (e: ListRow) => React.ReactNode;
-};
-
-/**
- * Characters filed by campaign, and inside a campaign by PC, NPC and Aux.
- * A character of several campaigns is listed under each of them.
- */
-export function CharacterFolders({ system, rows, filter, renderRow }: CharacterFoldersProps) {
-  const byKind = (list: ListRow[], id: string, depth: number) =>
-    KINDS.map((k) => {
-      const mine = list.filter((e) => kindOf(e) === k.key);
-      if (!mine.length) return null;
-      return (
-        <Folder key={k.key} id={`${id}:${k.key}`} title={k.title} count={mine.length} depth={depth}>
-          <ul className="space-y-1">{mine.map(renderRow)}</ul>
-        </Folder>
-      );
-    });
-
-  // Without campaigns there is nothing to file under, so the list is PC / NPC / Aux only.
-  if (!system.campaigns.length) return <div className="space-y-1">{byKind(rows, 'characters', 0)}</div>;
-
-  const sections = [
-    ...system.campaigns.map((c) => ({ id: c.id, title: c.name, list: rows.filter((e) => e.campaignIds.includes(c.id)) })),
-    { id: 'none', title: 'No campaign', list: rows.filter((e) => !e.campaignIds.length) },
-  ].filter((s) => (filter ? s.id === filter : s.list.length > 0));
-
-  return (
-    <div className="space-y-2">
-      {sections.map((s) => (
-        <Folder key={s.id} id={`characters:${s.id}`} title={s.title} count={s.list.length}>
-          {s.list.length ? byKind(s.list, `characters:${s.id}`, 1) : <p className="muted ml-6">Nobody here.</p>}
-        </Folder>
-      ))}
-    </div>
-  );
-}
-
 // ---------- Features: a table with search, filters and sorting, or folders ----------
 
 type SortKey = 'name' | 'ftype' | 'class' | 'tier' | 'holders';

@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import path from 'node:path';
+import { openPage as openSheetPage } from './sheet-pages';
 
 const shots = path.resolve(import.meta.dirname, 'screenshots');
 
@@ -38,6 +39,10 @@ test('character sheet: formulas, counters, modules and search', async ({ browser
   await dm.getByPlaceholder('New character…').fill('Elara Fairhold');
   await dm.getByRole('button', { name: 'Add' }).click();
   await expect(dm.getByLabel('Name', { exact: true })).toHaveValue('Elara Fairhold');
+  // A new character opens on Basic Info, in Edit. Every other page opens for reading.
+  await expect(dm).toHaveURL(/\/characters\/[^/]+\/basic$/);
+  const openPage = (label: string, edit = true) => openSheetPage(dm, label, edit);
+  await openPage('Stats');
 
   // A row of the sheet: its label, then its inputs.
   const rowOf = (label: string) => dm.locator('div.match-target', { hasText: label }).first();
@@ -55,9 +60,11 @@ test('character sheet: formulas, counters, modules and search', async ({ browser
   await level.fill('6');
   await level.blur();
   await expect(dm.locator('div.match-target', { hasText: 'Proficiency Bonus' }).locator('output')).toHaveText('+3');
+  await expect(rowOf('Strength (STR)').locator('output')).toHaveText('+0');
+  await openPage('Skills', false); // a tick box works while reading
   await rowOf('Persuasion (CHA)').getByLabel('Proficient').click();
   await expect(rowOf('Persuasion (CHA)').locator('output')).toHaveText('+7');
-  await expect(rowOf('Strength (STR)').locator('output')).toHaveText('+0');
+  await openPage('Stats', false);
 
   // Tick boxes: two points of inspiration out of four.
   const inspiration = dm.locator('div.match-target', { hasText: 'Inspiration' });
@@ -65,19 +72,30 @@ test('character sheet: formulas, counters, modules and search', async ({ browser
   await expect(inspiration.getByRole('button', { name: '2 of 4' })).toHaveAttribute('aria-pressed', 'true');
   await expect(inspiration.getByRole('button', { name: '3 of 4' })).toHaveAttribute('aria-pressed', 'false');
 
-  // The Spellcasting module adds its sections to this character only.
+  // The Spellcasting module adds its sections to this character only, on Spells Known.
+  // Modules are chosen under "Sheet settings" at the bottom of Basic Info.
+  await openPage('Spells Known', false);
   await expect(dm.getByText('Spell Slots')).toHaveCount(0);
-  await dm.getByLabel('Spellcasting', { exact: true }).click();
+  await openPage('Basic Info');
+  await dm.locator('[data-sheet-settings]').getByLabel('Spellcasting', { exact: true }).click();
+  await openPage('Spells Known');
   await expect(dm.getByRole('button', { name: /Spell Slots/ })).toBeVisible();
   await dm.locator('div.match-target', { hasText: 'Spellcasting ability' }).locator('select').selectOption('cha');
   await expect(rowOf('Spell Save DC').locator('output')).toHaveText('15'); // 8 + 3 + 4
 
   // Search: part of a word finds the row, opens its closed section and counts the matches.
+  await openPage('Skills', false);
   await dm.getByRole('button', { name: /^. Skills$/ }).click(); // collapse Skills
   await expect(dm.getByText('Persuasion (CHA)')).toHaveCount(0);
   await dm.getByLabel('Search this character').fill('persu');
   await expect(dm.getByText('Persuasion (CHA)')).toBeVisible();
-  await expect(dm.getByText('3 found')).toBeVisible(); // the three inputs of the Persuasion row
+  await expect(dm.getByText('3 found', { exact: true })).toBeVisible(); // the three inputs of the Persuasion row
+  // From another page the matches are counted in the menu, and the search stays on.
+  await openPage('Stats', false);
+  await expect(dm.getByText('Nothing on this page · 3 on other pages')).toBeVisible();
+  await expect(dm.locator('[data-page="skills"]')).toContainText('3');
+  await openPage('Skills', false);
+  await expect(dm.getByLabel('Search this character')).toHaveValue('persu');
   await dm.screenshot({ path: path.join(shots, 'sheet-search-desktop.png') });
   await dm.getByLabel('Search this character').fill('');
 

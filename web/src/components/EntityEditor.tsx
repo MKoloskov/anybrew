@@ -1,15 +1,35 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
+import { useLocation } from 'wouter';
 import { trpc, type System, type Entity } from '../trpc';
-import { DEFAULT_TYPES } from '../features';
+import { DEFAULT_TYPES, type SheetPart } from '../features';
 import { Label, useBilingual, useLang } from '../lang';
 import { AudiencePicker, describeAudience } from './AudiencePicker';
 import { ClassesInput } from './Classes';
 import { CustomFields, type CustomGroup } from './CustomFields';
 import { LinksPanel } from './LinksPanel';
+import { Gallery } from './Gallery';
+import { PageMenu, type SheetPage } from './SheetPages';
+import { D20Divider, FramedPortrait, HomeSummary } from './SheetViews';
 import { RichTextEditor, RichTextView } from './RichText';
 import { TalentTree, talentText, type Picks, type TalentData } from './TalentTree';
 
-type Props = { entityId: string; system: System; noun: string; onClose: () => void };
+type Props = {
+  entityId: string;
+  system: System;
+  noun: string;
+  onClose: () => void;
+  /** A back button shown on every screen size, for a page that stands alone. */
+  back?: string;
+  /**
+   * For a type whose sheet has pages (the character): the page in the address, and the address of
+   * each page. Without them the sheet is one long page.
+   */
+  page?: string;
+  pageHref?: (page: string) => string;
+};
+
+/** What a character has, listed on the page it belongs to. */
+const LINK_PART: Record<string, SheetPart> = { class: 'class', subclass: 'subclass', hero: 'hero', inventory: 'items', spells: 'spells' };
 
 const KIND_LABEL: Record<string, string> = { pc: 'PC', npc: 'NPC', aux: 'Aux' };
 
@@ -28,7 +48,17 @@ type Field = {
   dmEditOnly?: boolean;
   visibility?: Parameters<typeof describeAudience>[0];
 };
-type Group = { kind: 'group'; id: string; label: string; ru?: string; custom?: boolean; layout?: 'row'; children: Node[]; visibility?: Field['visibility'] };
+type Group = {
+  kind: 'group';
+  id: string;
+  label: string;
+  ru?: string;
+  custom?: boolean;
+  layout?: 'row';
+  page?: string;
+  children: Node[];
+  visibility?: Field['visibility'];
+};
 type Node = Field | Group;
 
 /** Text of a value as the search sees it. */
@@ -58,7 +88,7 @@ function isEmpty(value: unknown): boolean {
   return false;
 }
 
-export function EntityEditor({ entityId, system, noun, onClose }: Props) {
+export function EntityEditor({ entityId, system, noun, onClose, back, page, pageHref }: Props) {
   const utils = trpc.useUtils();
   const entity = trpc.entity.get.useQuery({ id: entityId }, { refetchInterval: 10_000 });
   const isDm = system.role === 'dm';
@@ -113,9 +143,63 @@ export function EntityEditor({ entityId, system, noun, onClose }: Props) {
   const [query, setQuery] = useState('');
   const [step, setStep] = useState(0);
   const root = useRef<HTMLDivElement>(null);
+  const [, navigate] = useLocation();
 
   const e = entity.data;
   const q = query.trim().toLowerCase();
+
+  // Pages of the sheet: which ones this viewer has, and which one is open.
+  const sheet = useMemo(() => {
+    if (!e?.schema.pages?.length || !pageHref) return null;
+    const groups = e.schema.groups as Group[];
+    const find = (nodes: Node[], id: string): Node | undefined => {
+      for (const n of nodes) {
+        if (n.id === id) return n;
+        const hit = n.kind === 'group' ? find(n.children, id) : undefined;
+        if (hit) return hit;
+      }
+      return undefined;
+    };
+    const fieldIds = (n: Node): string[] => (n.kind === 'field' ? [n.id] : n.children.flatMap(fieldIds));
+    // Someone who may see the character but is neither its owner nor the DM receives its outside view.
+    const outsider = system.role !== 'dm' && !e.canEdit;
+    const outside = new Set(e.schema.outside ?? []);
+    const pages: SheetPage<Node>[] = e.schema.pages.map((p) => ({
+      key: p.key,
+      label: p.label,
+      groups: groups.filter((g) => g.page === p.key),
+      shows: (p.shows ?? []).map((id) => find(groups, id)).filter((n): n is Node => !!n),
+      part: LINK_PART[p.key],
+    }));
+    // A page with nothing this viewer may see is not in their menu. Another player has the Preview,
+    // and only those further pages that hold something the DM opened to them on this character.
+    const visible = pages.filter((p) => {
+      if (outsider) return p.key === 'preview' || [...p.groups, ...p.shows].some((n) => fieldIds(n).some((id) => !outside.has(id)));
+      return p.groups.length > 0 || p.shows.length > 0 || !!p.part;
+    });
+    const first = outsider ? 'preview' : 'home';
+    const fallback = visible.find((p) => p.key === first)?.key ?? visible[0]?.key ?? '';
+    const current = visible.find((p) => p.key === page) ?? visible.find((p) => p.key === fallback)!;
+    return { pages: visible, current, fallback };
+  }, [e, page, pageHref, system.role]);
+  const currentPage = sheet?.current.key;
+
+  // An address without a page, or with one this viewer does not have, is replaced by the first page.
+  useEffect(() => {
+    if (sheet && pageHref && page !== sheet.current.key) navigate(pageHref(sheet.current.key), { replace: true });
+  }, [sheet, page, pageHref, navigate]);
+
+  // Every page of the sheet opens for reading and at its top, also when Edit was on for the page before.
+  const shownPage = useRef(currentPage);
+  useEffect(() => {
+    if (!currentPage || shownPage.current === currentPage) return;
+    if (shownPage.current !== undefined) {
+      setEditing(false);
+      setStep(0);
+      window.scrollTo(0, 0);
+    }
+    shownPage.current = currentPage;
+  }, [currentPage]);
 
   // Search: a field matches when its label, its row's label or its value contains the typed text.
   const matches = useMemo(() => {
@@ -190,7 +274,7 @@ export function EntityEditor({ entityId, system, noun, onClose }: Props) {
     if (node.type === 'classes') return <ClassesInput entityId={e.id} systemId={e.systemId} value={value} disabled={disabled} onSave={onSave} />;
     if (node.type === 'gallery')
       return (
-        <GalleryInput
+        <Gallery
           entityId={e.id}
           fieldId={node.id}
           pictures={Array.isArray(value) ? (value as string[]) : []}
@@ -259,7 +343,7 @@ export function EntityEditor({ entityId, system, noun, onClose }: Props) {
     return node.children.some(nodeShown);
   };
 
-  const renderNode = (node: Node, depth: number): React.ReactNode => {
+  const renderNode = (node: Node, depth: number, shownHere = false): React.ReactNode => {
     if (depth > 0 && !nodeShown(node)) return null;
     if (node.kind === 'group' && node.layout === 'row')
       return (
@@ -303,8 +387,8 @@ export function EntityEditor({ entityId, system, noun, onClose }: Props) {
     if (node.type === 'talentpicks') return null;
     // PC / NPC / Aux is chosen at the top of the sheet, next to the campaigns.
     if (e.typeKey === 'character' && node.id === 'kind') return null;
-    // The main picture of a gallery is shown and chosen inside the gallery.
-    if (galleryMains.has(node.id)) return null;
+    // The main picture of a gallery is shown and chosen inside the gallery, unless a page shows it on its own.
+    if (galleryMains.has(node.id) && !shownHere) return null;
     return (
       <div key={node.id} className="match-target mb-3 rounded-md px-1" {...mark(node.id)}>
         <div className="mb-1 flex items-center justify-between gap-2">
@@ -319,7 +403,13 @@ export function EntityEditor({ entityId, system, noun, onClose }: Props) {
     );
   };
 
-  const matchCount = matches.size;
+  // On a sheet with pages the search counts the open page here and every other page in the menu.
+  const countIn = (nodes: Node[]): number => nodes.reduce((sum, n) => sum + (matches.has(n.id) ? 1 : 0) + (n.kind === 'group' ? countIn(n.children) : 0), 0);
+  const pageCounts: Record<string, number> = {};
+  // Home only gathers values of other pages, so its matches are counted where they are stored.
+  if (sheet && q) for (const p of sheet.pages) if (p.key !== 'home') pageCounts[p.key] = countIn([...p.groups, ...p.shows]);
+  const matchCount = sheet ? (pageCounts[sheet.current.key] ?? 0) : matches.size;
+  const otherMatches = sheet ? Object.entries(pageCounts).reduce((sum, [key, n]) => sum + (key === sheet.current.key ? 0 : n), 0) : 0;
   const galleryMains = new Set<string>();
   const collectMains = (nodes: Node[]) =>
     nodes.forEach((n) => (n.kind === 'group' ? collectMains(n.children) : n.type === 'gallery' && n.main && galleryMains.add(n.main)));
@@ -336,81 +426,9 @@ export function EntityEditor({ entityId, system, noun, onClose }: Props) {
   // The Edit button shows for anyone who may change something here.
   const canChange = isDm || e.canEdit || e.editableFields.length > 0;
 
-  return (
-    <div className="p-4" ref={root} data-editor={editing ? "edit" : "read"}>
-      <button className="btn mb-3 md:hidden" onClick={onClose}>
-        ← Back
-      </button>
-      {!editing ? (
-        <div className="mb-4 flex flex-wrap items-baseline gap-x-3 gap-y-1">
-          <h1 className="display text-2xl" data-entity-name>
-            {bilingual(e.name, e.nameRu)}
-          </h1>
-          {isDm && e.access && <span className="muted">Seen by: {describeAudience(e.access.visibility, system)}</span>}
-        </div>
-      ) : (
-      <div className="mb-4 flex flex-wrap items-center gap-2">
-        <NameInput key={e.name} name={e.name} disabled={!e.canEdit} onSave={(name) => rename.mutate({ id: e.id, name })} />
-        {(e.canEdit || e.nameRu) && (
-          <input
-            className="input w-56"
-            aria-label="Russian name"
-            placeholder="Russian name…"
-            key={`ru:${e.nameRu}`}
-            defaultValue={e.nameRu ?? ''}
-            disabled={!e.canEdit}
-            onBlur={(ev) => ev.target.value.trim() !== (e.nameRu ?? '') && setNameRu.mutate({ id: e.id, nameRu: ev.target.value })}
-            onKeyDown={(ev) => ev.key === 'Enter' && ev.currentTarget.blur()}
-          />
-        )}
-        {isDm && e.access && (
-          <AudiencePicker system={system} value={e.access.visibility} onChange={(a) => a && setVisibility.mutate({ id: e.id, audience: a })} />
-        )}
-      </div>
-      )}
-
-      <div className="sticky top-0 z-10 -mx-1 mb-4 flex flex-wrap items-center gap-2 bg-bg/95 px-1 py-2 text-sm">
-        <input
-          className="input max-w-xs"
-          type="search"
-          placeholder={`Search this ${noun}…`}
-          aria-label={`Search this ${noun}`}
-          value={query}
-          onChange={(ev) => {
-            setQuery(ev.target.value);
-            setStep(0);
-          }}
-          onKeyDown={(ev) => ev.key === 'Enter' && setStep(step + (ev.shiftKey ? -1 : 1))}
-        />
-        {q && (
-          <>
-            <span className="muted">{matchCount ? `${matchCount} found` : 'Nothing found'}</span>
-            {matchCount > 1 && (
-              <>
-                <button className="btn px-2 py-0.5 text-xs" onClick={() => setStep(step - 1)}>
-                  Previous
-                </button>
-                <button className="btn px-2 py-0.5 text-xs" onClick={() => setStep(step + 1)}>
-                  Next
-                </button>
-              </>
-            )}
-          </>
-        )}
-        {canChange && (
-          <button
-            className={`btn ml-auto ${editing ? 'btn-primary' : ''}`}
-            aria-pressed={editing}
-            title={editing ? 'Back to reading' : `Change this ${noun}`}
-            onClick={() => setEditing(!editing)}
-          >
-            {editing ? 'Done' : 'Edit'}
-          </button>
-        )}
-      </div>
-
-      {!editing && <ReadMeta entity={e} system={system} isDm={isDm} kindLabel={kindValue ? (KIND_LABEL[kindValue] ?? kindValue) : null} />}
-
+  // Owner, kind, campaigns and modules: at the top of an entity, under "Sheet settings" on a sheet with pages.
+  const controls = (
+    <>
       {editing && isDm && (
         <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
           <span className="muted">Owner:</span>
@@ -513,8 +531,189 @@ export function EntityEditor({ entityId, system, noun, onClose }: Props) {
         </div>
       )}
 
+    </>
+  );
+
+  const nameBlock = (
+    <>
+      {!editing ? (
+        <div className={`flex flex-wrap items-baseline gap-x-3 gap-y-1 ${sheet ? 'mb-1' : 'mb-4'}`}>
+          <h1 className="display text-2xl" data-entity-name>
+            {bilingual(e.name, e.nameRu)}
+          </h1>
+          {isDm && e.access && <span className="muted">Seen by: {describeAudience(e.access.visibility, system)}</span>}
+        </div>
+      ) : (
+      <div className={`flex flex-wrap items-center gap-2 ${sheet ? 'mb-1' : 'mb-4'}`}>
+        <NameInput key={e.name} name={e.name} disabled={!e.canEdit} onSave={(name) => rename.mutate({ id: e.id, name })} />
+        {(e.canEdit || e.nameRu) && (
+          <input
+            className="input w-56"
+            aria-label="Russian name"
+            placeholder="Russian name…"
+            key={`ru:${e.nameRu}`}
+            defaultValue={e.nameRu ?? ''}
+            disabled={!e.canEdit}
+            onBlur={(ev) => ev.target.value.trim() !== (e.nameRu ?? '') && setNameRu.mutate({ id: e.id, nameRu: ev.target.value })}
+            onKeyDown={(ev) => ev.key === 'Enter' && ev.currentTarget.blur()}
+          />
+        )}
+        {isDm && e.access && !sheet && (
+          <AudiencePicker system={system} value={e.access.visibility} onChange={(a) => a && setVisibility.mutate({ id: e.id, audience: a })} />
+        )}
+      </div>
+      )}
+    </>
+  );
+  const readMeta = !editing && <ReadMeta entity={e} system={system} isDm={isDm} kindLabel={kindValue ? (KIND_LABEL[kindValue] ?? kindValue) : null} />;
+
+  const sheetBody = (
+    <div className="min-w-0">
+      {sheet ? (
+        // The compact header above every page of a sheet: main portrait in its frame, name, the quiet line.
+        <>
+          <header className="flex items-center gap-4" data-sheet-header>
+            <FramedPortrait fileId={e.values.portrait} name={e.name} className="size-16 text-base sm:size-20" />
+            <div className="min-w-0 flex-1 [&>*:last-child]:mb-0">
+              {nameBlock}
+              {readMeta}
+            </div>
+          </header>
+          <D20Divider />
+        </>
+      ) : (
+        nameBlock
+      )}
+
+      <div className="sticky top-0 z-10 -mx-1 mb-4 flex flex-wrap items-center gap-2 bg-bg/95 px-1 py-2 text-sm">
+        <input
+          className="input max-w-xs"
+          type="search"
+          placeholder={`Search this ${noun}…`}
+          aria-label={`Search this ${noun}`}
+          value={query}
+          onChange={(ev) => {
+            setQuery(ev.target.value);
+            setStep(0);
+          }}
+          onKeyDown={(ev) => ev.key === 'Enter' && setStep(step + (ev.shiftKey ? -1 : 1))}
+        />
+        {q && (
+          <>
+            <span className="muted">
+              {matchCount ? `${matchCount} found` : sheet && otherMatches ? 'Nothing on this page' : 'Nothing found'}
+              {sheet && otherMatches > 0 && ` · ${otherMatches} on other pages`}
+            </span>
+            {matchCount > 1 && (
+              <>
+                <button className="btn px-2 py-0.5 text-xs" onClick={() => setStep(step - 1)}>
+                  Previous
+                </button>
+                <button className="btn px-2 py-0.5 text-xs" onClick={() => setStep(step + 1)}>
+                  Next
+                </button>
+              </>
+            )}
+          </>
+        )}
+        {canChange && (
+          <button
+            className={`btn ml-auto ${editing ? 'btn-primary' : ''}`}
+            aria-pressed={editing}
+            title={editing ? 'Back to reading' : `Change this ${noun}`}
+            onClick={() => setEditing(!editing)}
+          >
+            {editing ? 'Done' : 'Edit'}
+          </button>
+        )}
+      </div>
+
+      {sheet && pageHref && (
+        <PageMenu variant="top" pages={sheet.pages} current={sheet.current.key} href={pageHref} counts={pageCounts} />
+      )}
+
+      {!sheet && readMeta}
+
+      {!sheet && controls}
+
       {error && <p className="mb-3 text-sm text-red-600 dark:text-red-400">Not saved: {error.message}</p>}
 
+      {sheet ? (
+        <>
+          {!editing && sheet.current.key === 'home' ? (
+            <HomeSummary entity={e} />
+          ) : !editing && sheet.current.key === 'preview' ? (
+            // What other players receive of this character: the main portrait large, then the rest.
+            <section className="mb-3 flex flex-col gap-4 sm:flex-row" data-shows="preview">
+              {sheet.current.shows.some((n) => n.id === 'portrait') && (
+                <FramedPortrait fileId={e.values.portrait} name={e.name} className="aspect-square w-full text-4xl sm:w-64" />
+              )}
+              <div className="card min-w-0 flex-1 self-start border-t-2 border-t-accent px-3 pt-3 pb-1">
+                {sheet.current.shows.filter((n) => n.id !== 'portrait').map((n) => renderNode(n, 1, true))}
+                {!sheet.current.shows.some((n) => n.id !== 'portrait' && nodeShown(n)) && <p className="muted pb-2 italic">Nothing filled in.</p>}
+              </div>
+            </section>
+          ) : sheet.current.shows.length > 0 && (
+            // Fields stored on another page and shown here as well: one value, edited in either place.
+            <section className="card mb-3 border-t-2 border-t-accent px-3 pt-3 pb-1" data-shows={sheet.current.key}>
+              {sheet.current.shows.map((n) => renderNode(n, 1, true))}
+              {!sheet.current.shows.some(nodeShown) && <p className="muted pb-2 italic">Nothing filled in.</p>}
+            </section>
+          )}
+          {sheet.current.groups.map((g) => renderNode(g, 0))}
+          {sheet.current.part && (
+            <LinksPanel
+              entityId={e.id}
+              systemId={e.systemId}
+              typeKey={e.typeKey}
+              canEdit={e.canEdit && editing}
+              canAddHolders={false}
+              part={sheet.current.part}
+            />
+          )}
+          {sheet.current.key === 'basic' && (isDm || (editing && e.canEdit)) && (
+            <section className="card mt-6 mb-3 p-3" data-sheet-settings>
+              <h2 className="display mb-3 text-base">Sheet settings</h2>
+              {editing && isDm && e.access && (
+                <div className="mb-4 flex flex-wrap items-center gap-2 text-sm">
+                  <span className="muted">Who can see the sheet:</span>
+                  <AudiencePicker system={system} value={e.access.visibility} onChange={(a) => a && setVisibility.mutate({ id: e.id, audience: a })} />
+                </div>
+              )}
+              {controls}
+              {editing && isDm && e.typeKey === 'character' && (
+                <CustomFields
+                  noun={noun}
+                  groups={(e.schema.groups as Group[])
+                    .filter((g) => g.custom)
+                    .map((g) => ({ id: g.id, label: g.label, children: (g.children as Field[]).map((c) => ({ id: c.id, label: c.label, type: c.type as CustomGroup['children'][number]['type'], max: c.max })) }))}
+                  onChange={(groups) => setCustomSchema.mutate({ id: e.id, groups })}
+                />
+              )}
+
+              <div className="mt-2 flex flex-wrap gap-2">
+                {isDm && (
+                  <button className="btn" onClick={() => setShowHistory(!showHistory)}>
+                    {showHistory ? 'Hide history' : 'History'}
+                  </button>
+                )}
+                {editing && e.canEdit && (
+                  <button
+                    className="btn btn-danger"
+                    onClick={() => {
+                      if (confirm(`Delete “${e.name}”? The DM can restore it from the Data tab.`)) remove.mutate({ id: e.id });
+                    }}
+                  >
+                    Delete
+                  </button>
+                )}
+              </div>
+              {isDm && showHistory && <History entity={e} noun={noun} onChanged={refresh} />}
+            </section>
+          )}
+        </>
+      ) : (
+        <>
       {(e.schema.groups as Node[]).map((g) => renderNode(g, 0))}
 
       {['character', 'feature', 'spell', 'item'].includes(e.typeKey) && (
@@ -549,6 +748,25 @@ export function EntityEditor({ entityId, system, noun, onClose }: Props) {
         )}
       </div>
       {isDm && showHistory && <History entity={e} noun={noun} onChanged={refresh} />}
+        </>
+      )}
+    </div>
+  );
+
+  // A sheet with pages: the open page on the left, the menu of pages on the right.
+  if (sheet && pageHref)
+    return (
+      <div className="p-4 md:grid md:grid-cols-[minmax(0,1fr)_13rem] md:gap-6" ref={root} data-editor={editing ? 'edit' : 'read'} data-sheet-page={sheet.current.key}>
+        {sheetBody}
+        <PageMenu variant="side" pages={sheet.pages} current={sheet.current.key} href={pageHref} counts={pageCounts} />
+      </div>
+    );
+  return (
+    <div className="p-4" ref={root} data-editor={editing ? 'edit' : 'read'}>
+      <button className={`btn mb-3 ${back ? '' : 'md:hidden'}`} onClick={onClose}>
+        {back ?? '← Back'}
+      </button>
+      {sheetBody}
     </div>
   );
 }
@@ -867,95 +1085,6 @@ function ImageInput({ entityId, fieldId, value, disabled, onChanged, onSave }: I
               Remove
             </button>
           )}
-          {message && <span className="muted">{message}</span>}
-        </div>
-      )}
-    </div>
-  );
-}
-
-type GalleryInputProps = {
-  entityId: string;
-  fieldId: string;
-  pictures: string[];
-  main?: string;
-  disabled: boolean;
-  canSetMain: boolean;
-  onChanged: () => void;
-};
-
-/** Several pictures. One of them is the main one, shown on cards and at the top of the sheet. */
-function GalleryInput({ entityId, fieldId, pictures, main, disabled, canSetMain, onChanged }: GalleryInputProps) {
-  const fileInput = useRef<HTMLInputElement>(null);
-  const [message, setMessage] = useState<string | null>(null);
-  const setMain = trpc.entity.setMainPicture.useMutation({ onSuccess: onChanged });
-  const remove = trpc.entity.removePicture.useMutation({ onSuccess: onChanged });
-  const upload = async (file: File) => {
-    setMessage('Uploading…');
-    const response = await fetch(`/api/upload?entityId=${encodeURIComponent(entityId)}&fieldId=${encodeURIComponent(fieldId)}`, {
-      method: 'POST',
-      headers: { 'content-type': file.type },
-      body: file,
-    });
-    setMessage(
-      response.ok
-        ? null
-        : response.status === 413
-          ? 'The picture is larger than 8 MB.'
-          : response.status === 400 && pictures.length >= 30
-            ? 'The gallery is full: 30 pictures at most.'
-            : 'Not uploaded. Use a PNG, JPEG, WebP or GIF picture.',
-    );
-    if (response.ok) onChanged();
-  };
-  return (
-    <div>
-      {!pictures.length && disabled && <span className="text-sm text-muted">no pictures</span>}
-      {main && pictures.includes(main) && <img src={`/api/file/${main}`} alt="Main picture" className="mb-2 max-h-72 max-w-full rounded-md border border-line" />}
-      <div className="mb-2 flex flex-wrap gap-3">
-        {pictures.map((id, i) => (
-          <figure key={id} className="w-32" data-main={id === main ? '' : undefined}>
-            <img src={`/api/file/${id}`} alt={`Picture ${i + 1}`} className="h-32 w-32 rounded-md border border-line object-cover" />
-            <figcaption className="mt-1 flex flex-wrap items-center gap-1 text-xs">
-              {id === main ? (
-                <span className="font-semibold text-accent">Main</span>
-              ) : (
-                canSetMain && (
-                  <button type="button" className="btn px-2 py-0.5 text-xs" onClick={() => setMain.mutate({ id: entityId, fieldId, fileId: id })}>
-                    Make main
-                  </button>
-                )
-              )}
-              {!disabled && (
-                <button
-                  type="button"
-                  className="btn btn-danger px-2 py-0.5 text-xs"
-                  aria-label={`Remove picture ${i + 1}`}
-                  onClick={() => confirm('Remove this picture?') && remove.mutate({ id: entityId, fieldId, fileId: id })}
-                >
-                  Remove
-                </button>
-              )}
-            </figcaption>
-          </figure>
-        ))}
-      </div>
-      {!disabled && (
-        <div className="flex flex-wrap items-center gap-2">
-          <input
-            ref={fileInput}
-            type="file"
-            accept="image/png,image/jpeg,image/webp,image/gif"
-            className="hidden"
-            onChange={(ev) => {
-              const file = ev.target.files?.[0];
-              if (file) void upload(file);
-              ev.target.value = '';
-            }}
-          />
-          <button type="button" className="btn" onClick={() => fileInput.current?.click()}>
-            Add picture…
-          </button>
           {message && <span className="muted">{message}</span>}
         </div>
       )}

@@ -1,6 +1,6 @@
 # AnyBrew Campaign Manager — TODOs
 
-Last updated: 2026-11-18 (F3 done; F4 done; U3 step 1 built, U3 split into U3a–U3c).
+Last updated: 2026-11-18 (U3 built: U3a and U3b done, owner check U3c open).
 The single list of open work for this project. Every new task goes here, not into other files.
 First filled from `PLAN.md`, the README and the Chronica import documents; the code itself was not audited, so a task marked "check" may turn out to be done.
 
@@ -66,8 +66,7 @@ Decisions are in `PLAN.md` section 10.7. Build in this order; each step leaves t
 
 | ID | Task | Priority | Complexity | Model |
 |---|---|---|---|---|
-| U3b | Focused character sheet, step 2 (`PLAN.md` 10.7, decision 16): first versions of Home and Preview (today they list their "shows" fields in one plain box; Home shows empty ability rows as "–"), the gallery screen in place of the small one added to the old sheet in U1, the compact header on every page with the main portrait in its brass frame and a d20 divider (decision 14). Search counts per page were moved into step 1. | P2 | 3 | Opus 5.5 (medium) |
-| U3c | Owner check of U3 step 1: open a character from the list on PC and phone; switch pages with the right-hand menu and the phone drop-down; reload and Back; Edit on one page, then another page opens in Read; search and the counts in the menu; "Sheet settings" at the bottom of Basic Info; log in as a player and open another player's character (Preview only). | P2 | 1 | Owner |
+| U3c | Owner check of U3 (both steps): open a character from the list on PC and phone; the header with the main portrait and the d20 line on every page; switch pages with the right-hand menu and the phone drop-down; reload and Back; Edit on one page, then another page opens in Read; search and the counts in the menu; Home (class, level, AC, HP, initiative, abilities, tags); Preview; the gallery on Basic Info (add several pictures, open one large, arrows, make main, remove); "Sheet settings" at the bottom of Basic Info; log in as a player and open another player's character (Preview only). | P2 | 1 | Owner |
 | U4 | Player Requests: `requests` and `request_messages` tables, endpoints, Open and Archive folders, count in the navigation, part of the JSON export and import, server and browser tests. | P2 | 3 | Fable 5.2 |
 | U5 | Preview page by the owner's design: which fields other players receive beyond the first version, and how the page looks. The server rule itself is built in U1. Needs the owner's design. | P3 | 2 | Fable 5.2 |
 | U6 | Home page of the sheet: the owner's design of the summary. | P3 | 2 | Opus 5.5 (medium) |
@@ -86,7 +85,7 @@ Build in this order. V1, V2 and V3 are done; V1 shipped alone so the owner can c
 | V6 | Owner check after V2, V9 and V3: PC and phone, light and dark, Russian reading on; read a spell, a feature and a character in Read mode, then change something in Edit; look at the tab icons on a phone and at the login page. | P2 | 1 | Owner |
 | V7 | Login page artwork carousel: the DM uploads pictures and marks them for the login page, each with a title; they change every few seconds. They are the only pictures served without a login, kept apart from other uploads; browser test that other uploads stay closed. | P3 | 3 | Fable 5.2 |
 
-Also in other tasks: portrait frames in the sheet header (U3b; the cards got theirs in U2), d20 dividers on the sheet (U3b), spell School field (S1) and school colour dots (S2).
+Also in other tasks: portrait frames (cards in U2, sheet header in U3b), d20 dividers on the sheet (U3b, done), spell School field (S1) and school colour dots (S2).
 
 ## I. Items and inventory (phase 2)
 
@@ -166,6 +165,7 @@ Not tasks until the owner asks:
 
 | ID | Task | Finished |
 |---|---|---|
+| U3b | Focused character sheet, step 2: compact header above every page (main portrait in its brass frame or the first letter, name, the quiet line, a d20 divider); Home first version in Read mode (class and level, tiles for Level, AC, HP, Initiative, Proficiency, the six abilities, tags; Home is left out of the search counts); Preview first version (main portrait large, Allegiance, Race, Open Character History); the gallery screen on Basic Info (framed grid, main marked, large view with arrows and Escape, make main and remove in the view, several pictures at once or dropped, "n of 30"); numbers in the text font because Marcellus SC draws 0 like O; browser test `e2e/u3-sheet-pages.spec.ts` extended. | 2026-11-18 |
 | U3a | Focused character sheet, step 1: "← Characters" in place of the site navigation inside a sheet; right-hand page menu (a drop-down on a phone) with only the pages the viewer has (another player: Preview only); an address per page (`/s/<system>/characters/<id>/<page>`), unknown or hidden pages fall back to Home or Preview; every page opens in Read; features split onto Class / Subclass / Hero Abilities, items on Inventory, spells on Spells Known, each "+ Add" offering only what belongs on that page; "Sheet settings" (who can see it, owner, kind, campaigns, modules, custom sections, history, delete) at the bottom of Basic Info; search counts per page in the menu; a new character opens on Basic Info; browser tests rewritten, new `e2e/u3-sheet-pages.spec.ts`. | 2026-11-18 |
 | F3 | Pictures in the backup and the export: `npm run backup` also copies new pictures into one shared `backups\uploads` folder (never pruned, so every database copy finds its pictures); the Data tab exports a ZIP (`export.json` plus `pictures/`) with every picture of the System, replaced ones included for undo, or a plain JSON file with "Include pictures" unticked; a ZIP import gives pictures new ids and writes them to disk, old JSON files still import; routes in `server/src/archive.ts`; 10 server tests in `server/test/archive.test.ts`, browser test `e2e/x-export-pictures.spec.ts`. | 2026-11-18 |
 | F4 | Commit the work to git: done by the owner; only fresh changes are uncommitted. From now on a commit is offered after each Summary update (`CLAUDE.md`, Rule 3). | 2026-11-18 |

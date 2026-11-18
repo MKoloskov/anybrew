@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import path from 'node:path';
+import { openPage } from './sheet-pages';
 
 const shots = path.resolve(import.meta.dirname, 'screenshots');
 
@@ -75,9 +76,6 @@ test('Slate & Brass: fonts from our own server, dark top bar in both modes, bras
       await page.getByLabel('Password').fill('dm-password');
       await page.getByRole('button', { name: 'Log in' }).click();
       await page.getByRole('link', { name: 'Characters' }).click();
-      await page.locator('li[data-entity] a').first().click();
-      await expect(page.locator('[data-entity-name]')).toBeVisible();
-      await page.evaluate(() => document.fonts.ready);
 
       // The top bar is dark slate in both modes; the active tab is marked by brass, not a filled button.
       const bar = await page.locator('header.bar').evaluate((el) => getComputedStyle(el).backgroundColor);
@@ -86,6 +84,11 @@ test('Slate & Brass: fonts from our own server, dark top bar in both modes, bras
       await expect(active).toHaveText('Characters');
       const underline = await active.evaluate((el) => getComputedStyle(el).borderBottomColor);
       expect(underline).toBe(mode === 'light' ? 'rgb(150, 104, 31)' : 'rgb(212, 166, 86)');
+
+      // A character sheet, for the fonts of names and headings.
+      await page.locator('li[data-entity] a').first().click();
+      await expect(page.locator('[data-entity-name]')).toBeVisible();
+      await page.evaluate(() => document.fonts.ready);
 
       // Text in Source Sans 3, names and headings in Marcellus SC; all fonts come from this server.
       expect(await page.evaluate(() => document.fonts.check('16px "Source Sans 3 Variable"'))).toBe(true);
@@ -109,6 +112,8 @@ test('Slate & Brass: Russian letters in headings use Spectral SC', async ({ brow
   await page.getByLabel('Reading language').selectOption('ru');
   await page.getByRole('link', { name: 'Characters' }).click();
   await page.locator('li[data-entity] a').first().click();
+  // The ability rows show every label in Edit, also where nothing is filled in.
+  await openPage(page, 'Stats', true);
   await expect(page.getByText('Сила').first()).toBeVisible();
   await page.evaluate(() => document.fonts.ready);
   expect(await page.evaluate(() => document.fonts.check('500 16px "Spectral SC"', 'Сила'))).toBe(true);

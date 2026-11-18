@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import path from 'node:path';
+import { openPage } from './sheet-pages';
 
 const shots = path.resolve(import.meta.dirname, 'screenshots');
 const classFile = path.resolve(import.meta.dirname, 'fixtures/alternate-wizard.class.json');
@@ -43,7 +44,7 @@ test('classes: a class file is reviewed and imported, then taken on a character 
   // ---- The character takes the class ----
   await dm.getByRole('link', { name: 'Characters', exact: true }).click();
   await dm.getByRole('link', { name: /Esther Silverhand/ }).click();
-  await dm.getByRole('button', { name: 'Edit', exact: true }).click();
+  await openPage(dm, 'Basic Info', true);
   const classes = dm.locator('[data-classes]');
   await classes.getByLabel('Add a class').selectOption({ label: 'Alternate Wizard' });
   const wizard = classes.locator('[data-class="Alternate Wizard"]');
@@ -56,25 +57,35 @@ test('classes: a class file is reviewed and imported, then taken on a character 
   await expect(wizard).toContainText('1st-circle slots: 3');
 
   // The sheet took the level, hit dice and saving throws from the class.
+  await openPage(dm, 'Stats', true);
   const field = (label: string) => dm.locator('div.match-target', { hasText: label }).locator('input').first();
   await expect(field('Level')).toHaveValue('2');
   await expect(field('Hit Dice (dice)')).toHaveValue('2d6');
   await expect(dm.locator('.sheet-row', { hasText: 'Save – INT' }).getByRole('checkbox')).toBeChecked();
   await expect(dm.locator('.sheet-row', { hasText: 'Save – STR' }).getByRole('checkbox')).not.toBeChecked();
 
-  // Class features up to level 2, with the Evoker's and without the Diviner's or the level 4 one.
-  const features = dm.locator('[data-links="Features"]');
+  // Class features up to level 2 on Class Abilities; the Evoker's on Subclass Abilities, without the
+  // Diviner's; nothing of level 4 yet.
+  await openPage(dm, 'Class Abilities');
+  const features = dm.locator('[data-links="Class features"]');
   await expect(features.locator('[data-link="Spellcasting"]')).toContainText('from class');
-  await expect(features.locator('[data-link="Sculpt Spells"]')).toBeVisible();
-  await expect(features.locator('[data-link="Portent"]')).toHaveCount(0);
+  await expect(features.locator('[data-link="Sculpt Spells"]')).toHaveCount(0);
   await expect(features.locator('[data-link="Ability Score Improvement"]')).toHaveCount(0);
   await expect(features.getByText('Alternate Wizard features')).toBeVisible();
+  await openPage(dm, 'Subclass Abilities');
+  const subclass = dm.locator('[data-links="Subclass features"]');
+  await expect(subclass.locator('[data-link="Sculpt Spells"]')).toContainText('from class');
+  await expect(subclass.locator('[data-link="Portent"]')).toHaveCount(0);
+  await expect(subclass.locator('[data-link="Spellcasting"]')).toHaveCount(0);
 
   // Level 4 brings the next feature in by itself.
+  await openPage(dm, 'Basic Info', true);
   await level.fill('4');
   await level.blur();
-  await expect(features.locator('[data-link="Ability Score Improvement"]')).toBeVisible();
   await expect(wizard).toContainText('Cantrips Known: 4');
+  await openPage(dm, 'Class Abilities');
+  await expect(features.locator('[data-link="Ability Score Improvement"]')).toBeVisible();
+  await openPage(dm, 'Basic Info');
   await classes.scrollIntoViewIfNeeded();
   await dm.screenshot({ path: path.join(shots, 'class-on-sheet.png'), fullPage: true });
 });

@@ -3,7 +3,9 @@ import { Link, useLocation } from 'wouter';
 import { Centered } from '../App';
 import { ClassImport } from '../components/Classes';
 import { EntityEditor, markNew } from '../components/EntityEditor';
-import { CharacterFolders, FeatureBrowser, type ListRow } from '../components/Lists';
+import { CharacterList } from '../components/CharacterList';
+import { D20, EmptyState, SectionIcon } from '../components/Icons';
+import { FeatureBrowser, type ListRow } from '../components/Lists';
 import { LangProvider, useBilingual, type Lang } from '../lang';
 import { ENTITY_TABS, type EntityTabDef } from '../tabs';
 import { useTheme, type ThemeChoice } from '../theme';
@@ -11,9 +13,9 @@ import { trpc, type System } from '../trpc';
 import { DataTab } from './Data';
 import { PeopleTab } from './People';
 
-type Props = { systemId: string; tab: string; entityId?: string; user: { id: string; displayName: string; language: Lang } };
+type Props = { systemId: string; tab: string; entityId?: string; page?: string; user: { id: string; displayName: string; language: Lang } };
 
-export function SystemPage({ systemId, tab, entityId, user }: Props) {
+export function SystemPage({ systemId, tab, entityId, page, user }: Props) {
   const utils = trpc.useUtils();
   const [, navigate] = useLocation();
   const [theme, setTheme] = useTheme();
@@ -38,6 +40,8 @@ export function SystemPage({ systemId, tab, entityId, user }: Props) {
   if (!system.data) return <Centered>Loading…</Centered>;
   const c = system.data;
   const isDm = c.role === 'dm';
+  // Inside a character sheet the site navigation gives way to one way back to the list.
+  const focused = tab === 'characters' && !!entityId;
   const tabs = [
     ...ENTITY_TABS.map((t) => ({ key: t.key, label: t.label })),
     { key: 'people', label: 'People' },
@@ -49,17 +53,20 @@ export function SystemPage({ systemId, tab, entityId, user }: Props) {
     <div className="flex min-h-dvh flex-col">
       <header className="bar border-b border-accent bg-bar text-bar-fg">
         <div className="mx-auto flex max-w-7xl flex-wrap items-center gap-x-4 gap-y-2 px-4 pt-2.5">
-        {systems.data && systems.data.length > 1 ? (
-          <select className="input display mb-2.5 w-auto text-base" value={c.id} onChange={(e) => navigate(`/s/${e.target.value}`)}>
-            {systems.data.map((x) => (
-              <option key={x.id} value={x.id}>
-                {x.name}
-              </option>
-            ))}
-          </select>
-        ) : (
-          <h1 className="display mb-2.5 text-xl">{c.name}</h1>
-        )}
+        <div className="mb-2.5 flex items-center gap-2">
+          <D20 className="size-5 shrink-0 text-accent" />
+          {systems.data && systems.data.length > 1 ? (
+            <select className="input display w-auto text-base" value={c.id} onChange={(e) => navigate(`/s/${e.target.value}`)}>
+              {systems.data.map((x) => (
+                <option key={x.id} value={x.id}>
+                  {x.name}
+                </option>
+              ))}
+            </select>
+          ) : (
+            <h1 className="display text-xl">{c.name}</h1>
+          )}
+        </div>
         {isDm && (
           <button
             className="btn mb-2.5 px-2 py-0.5 text-xs"
@@ -72,20 +79,31 @@ export function SystemPage({ systemId, tab, entityId, user }: Props) {
             + System
           </button>
         )}
-        <nav className="flex flex-wrap gap-x-1">
+        {focused ? (
+          <nav className="flex items-center pb-2.5">
+            <Link href={`/s/${c.id}/characters`} className="btn px-3 py-1 text-sm">
+              ← Characters
+            </Link>
+          </nav>
+        ) : (
+        <nav className="flex flex-wrap md:gap-x-1">
           {tabs.map((t) => (
             <Link
               key={t.key}
               href={`/s/${c.id}/${t.key}`}
               aria-current={tab === t.key ? 'page' : undefined}
-              className={`border-b-2 px-3 pt-1.5 pb-2.5 text-sm font-medium ${
+              title={t.label}
+              className={`flex items-center gap-1.5 border-b-2 px-2 pt-1.5 pb-2.5 text-sm font-medium md:px-3 ${
                 tab === t.key ? 'border-accent text-bar-fg' : 'border-transparent text-bar-fg/70 hover:text-bar-fg'
               }`}
             >
-              {t.label}
+              <SectionIcon section={t.key} className="size-5 md:size-4" />
+              {/* On a phone the labels drop and the icons stay; the label is still the link's name and its tooltip. */}
+              <span className="sr-only md:not-sr-only">{t.label}</span>
             </Link>
           ))}
         </nav>
+        )}
         <div className="mb-2.5 ml-auto flex flex-wrap items-center gap-3 text-sm">
           <span className="text-bar-fg/70">
             {user.displayName} · {isDm ? 'DM' : 'player'}
@@ -124,6 +142,23 @@ export function SystemPage({ systemId, tab, entityId, user }: Props) {
         <PeopleTab system={c} userId={user.id} />
       ) : tab === 'data' && isDm ? (
         <DataTab system={c} />
+      ) : tab === 'characters' ? (
+        // Characters: a page of cards; a card opens the sheet alone, with a way back to the list.
+        entityId ? (
+          <main className="min-w-0">
+            <EntityEditor
+              key={entityId}
+              entityId={entityId}
+              system={c}
+              noun="character"
+              page={page}
+              pageHref={(p) => `/s/${c.id}/characters/${entityId}/${p}`}
+              onClose={() => navigate(`/s/${c.id}/characters`)}
+            />
+          </main>
+        ) : (
+          <CharacterList system={c} />
+        )
       ) : (
         <EntityTab
           key={tab}
@@ -215,11 +250,9 @@ function EntityTab({ system, entityId, def }: EntityTabProps) {
             {chosen && <p className="mt-1 text-xs text-muted">New {plural} are filed under {chosen.name}.</p>}
           </div>
         )}
-        {list.data?.length === 0 && <p className="muted">No {plural} yet.</p>}
-        {list.data && list.data.length > 0 && shown?.length === 0 && <p className="muted">Nothing here.</p>}
-        {typeKey === 'character' ? (
-          <CharacterFolders system={system} rows={shown ?? []} filter={filter} renderRow={row} />
-        ) : typeKey === 'feature' ? (
+        {list.data?.length === 0 && <EmptyState>No {plural} yet.</EmptyState>}
+        {list.data && list.data.length > 0 && shown?.length === 0 && <EmptyState>Nothing here.</EmptyState>}
+        {typeKey === 'feature' ? (
           <FeatureBrowser system={system} rows={shown ?? []} selectedId={entityId} href={href} />
         ) : (
           <ul className="space-y-1">{shown?.map(row)}</ul>
