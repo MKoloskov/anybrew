@@ -18,9 +18,9 @@ private (incognito) window, so the two logins do not share a session.
 
 Everything is in one file: `server\data\anybrew.db`. Deleting it resets the app to first-run setup.
 
-- **Pictures:** uploaded images are files in `server\data\uploads`. They are not yet included in the backup or the export, so copy that folder too.
-- **Backup:** `npm run backup` writes a timestamped copy to `server\data\backups` and keeps the newest 30.
-- **Export:** the Data tab downloads the whole System as one JSON file, which can be imported as a new System.
+- **Pictures:** uploaded images are files in `server\data\uploads`.
+- **Backup:** `npm run backup` writes a timestamped copy of the database to `server\data\backups` and keeps the newest 30. It also copies every new picture into `server\data\backups\uploads`; that folder is shared by all copies and never pruned. To restore: stop the server, put the chosen copy back as `server\data\anybrew.db` (delete `anybrew.db-wal` and `anybrew.db-shm`), and copy `backups\uploads` into `server\data\uploads`.
+- **Export:** the Data tab downloads the whole System. With "Include pictures" (the default) it is a ZIP file holding `export.json` and every uploaded picture of the System; without, it is one JSON file. Either can be imported as a new System; a JSON file brings no pictures.
 
 ## Checks
 

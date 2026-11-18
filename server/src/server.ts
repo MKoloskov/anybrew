@@ -6,6 +6,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { SESSION_MAX_AGE_SECONDS, userFromToken } from './auth';
 import { openDb } from './db';
+import { registerArchiveRoutes } from './archive';
 import { registerFileRoutes } from './files';
 import { appRouter, type AppRouter } from './router';
 import type { Ctx } from './trpc';
@@ -55,7 +56,9 @@ await app.register(fastifyTRPCPlugin, {
   } satisfies FastifyTRPCPluginOptions<AppRouter>['trpcOptions'],
 });
 
-registerFileRoutes(app, db, COOKIE, path.join(path.dirname(DB_FILE), 'uploads'));
+const UPLOADS_DIR = path.join(path.dirname(DB_FILE), 'uploads');
+registerFileRoutes(app, db, COOKIE, UPLOADS_DIR);
+registerArchiveRoutes(app, db, COOKIE, UPLOADS_DIR);
 
 // In production the built web app is served by this same process.
 const webDist = path.resolve(import.meta.dirname, '../../web/dist');

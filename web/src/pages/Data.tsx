@@ -12,27 +12,60 @@ export function DataTab({ system }: { system: System }) {
       void utils.entity.list.invalidate();
     },
   });
-  const importer = trpc.system.import.useMutation({
-    onSuccess: async ({ systemId }) => {
-      await utils.system.list.invalidate();
-      navigate(`/s/${systemId}`);
-    },
-  });
+  const importer = trpc.system.import.useMutation({ onSuccess: ({ systemId }) => opened(systemId) });
   const fileInput = useRef<HTMLInputElement>(null);
   const [message, setMessage] = useState<string | null>(null);
+  const [withPictures, setWithPictures] = useState(true);
+  const [busy, setBusy] = useState<'export' | 'import' | null>(null);
 
-  const download = async () => {
-    const data = await utils.system.export.fetch({ systemId: system.id }, { staleTime: 0 });
-    const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+  const save = (blob: Blob, extension: string) => {
     const a = document.createElement('a');
     a.href = URL.createObjectURL(blob);
-    a.download = `${system.name.replace(/[^\p{L}\p{N} _-]/gu, '')}-${new Date().toISOString().slice(0, 10)}.json`;
+    a.download = `${system.name.replace(/[^\p{L}\p{N} _-]/gu, '')}-${new Date().toISOString().slice(0, 10)}.${extension}`;
     a.click();
     URL.revokeObjectURL(a.href);
   };
 
+  const download = async () => {
+    setMessage(null);
+    setBusy('export');
+    try {
+      if (withPictures) {
+        const res = await fetch(`/api/export/${system.id}`);
+        if (!res.ok) throw new Error();
+        save(await res.blob(), 'zip');
+      } else {
+        const data = await utils.system.export.fetch({ systemId: system.id }, { staleTime: 0 });
+        save(new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' }), 'json');
+      }
+    } catch {
+      setMessage('The export could not be made.');
+    } finally {
+      setBusy(null);
+    }
+  };
+
+  const opened = async (systemId: string) => {
+    await utils.system.list.invalidate();
+    navigate(`/s/${systemId}`);
+  };
+
   const upload = async (file: File) => {
     setMessage(null);
+    if (/\.zip$/i.test(file.name)) {
+      setBusy('import');
+      try {
+        const res = await fetch('/api/import', { method: 'POST', headers: { 'content-type': 'application/zip' }, body: file });
+        const answer = (await res.json().catch(() => ({}))) as { systemId?: string; error?: string };
+        if (!res.ok || !answer.systemId) setMessage(answer.error ?? 'The file could not be imported.');
+        else await opened(answer.systemId);
+      } catch {
+        setMessage('The file could not be imported.');
+      } finally {
+        setBusy(null);
+      }
+      return;
+    }
     try {
       importer.mutate({ data: JSON.parse(await file.text()) }, { onError: (e) => setMessage(e.message) });
     } catch {
@@ -45,21 +78,26 @@ export function DataTab({ system }: { system: System }) {
       <section className="card p-4">
         <h2 className="display mb-1 text-lg">Export</h2>
         <p className="muted mb-3">
-          Downloads the whole system as one JSON file: members, campaigns, parties, every note with its hidden parts, links and the full
-          change history. Keep it private.
+          Downloads the whole system: members, campaigns, parties, every entry with its hidden parts, links and the full change history.
+          With pictures it is a ZIP file that also holds every uploaded picture; without them it is one smaller JSON file. Keep it private.
         </p>
-        <button className="btn btn-primary" onClick={download}>
-          Download export
+        <label className="mb-3 flex cursor-pointer items-center gap-2 text-sm">
+          <input type="checkbox" checked={withPictures} onChange={(e) => setWithPictures(e.target.checked)} /> Include pictures
+        </label>
+        <button className="btn btn-primary" disabled={busy !== null} onClick={download}>
+          {busy === 'export' ? 'Preparing…' : 'Download export'}
         </button>
       </section>
 
       <section className="card p-4">
         <h2 className="display mb-1 text-lg">Import</h2>
-        <p className="muted mb-3">Creates a new system from an export file. The current system is not changed.</p>
+        <p className="muted mb-3">
+          Creates a new system from an export file (.zip with pictures, or .json without). The current system is not changed.
+        </p>
         <input
           ref={fileInput}
           type="file"
-          accept="application/json,.json"
+          accept="application/json,.json,application/zip,.zip"
           className="hidden"
           onChange={(e) => {
             const file = e.target.files?.[0];
@@ -67,8 +105,8 @@ export function DataTab({ system }: { system: System }) {
             e.target.value = '';
           }}
         />
-        <button className="btn" disabled={importer.isPending} onClick={() => fileInput.current?.click()}>
-          Choose export file…
+        <button className="btn" disabled={importer.isPending || busy !== null} onClick={() => fileInput.current?.click()}>
+          {busy === 'import' ? 'Importing…' : 'Choose export file…'}
         </button>
         {message && <p className="mt-2 text-sm text-red-600 dark:text-red-400">{message}</p>}
       </section>

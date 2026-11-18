@@ -1,6 +1,6 @@
 # AnyBrew Campaign Manager — TODOs
 
-Last updated: 2026-11-18.
+Last updated: 2026-11-18 (F3 done; F4 done; U3 step 1 built, U3 split into U3a–U3c).
 The single list of open work for this project. Every new task goes here, not into other files.
 First filled from `PLAN.md`, the README and the Chronica import documents; the code itself was not audited, so a task marked "check" may turn out to be done.
 
@@ -39,19 +39,16 @@ A new task gets the next free number in its section. A finished task is moved to
 | A5 | Upload character portraits, item pictures and the 2 maps by hand: the Chronica export held no picture files. | P4 | 1 | Owner |
 | A6 | Create the dedicated Obsidian folder that will be imported as the wiki. Blocks W6. | P3 | 1 | Owner |
 | A7 | Resolve spell conflicts between Obsidian, Chronica and the Google Sheet in the review list, when S7 has produced it. | P3 | 2 | Owner |
-| A10 | On the look book page (https://claude.ai/artifact/1i94FWp71kWs5kvnB3wQur): say whether the stone-texture login page is right for now (`PLAN.md` section 11.7, question 3). Not blocking V2. | P3 | 1 | Owner |
 
 ## F. Foundation (phase 0 leftovers and upkeep)
 
 | ID | Task | Priority | Complexity | Model |
 |---|---|---|---|---|
 | F1 | Deploy to the VPS with Docker and Caddy (HTTPS); a DM and a player log in on the live server. Waits for A1. | P1 | 3 | Opus 5.5 (medium) |
-| F2 | Scheduled nightly backup of the database to storage off the server. Waits for A1. | P1 | 2 | Sonnet 5.5 |
-| F3 | Include uploaded pictures (`server\data\uploads`) in the backup command and in the JSON export and import. | P1 | 3 | Opus 5.5 (medium) |
-| F4 | Commit the current work to git: almost everything since the first commit is uncommitted. | P1 | 1 | Haiku 5.5 |
+| F2 | Scheduled nightly backup (`npm run backup`) and a copy of the result to storage off the server: the database copies and the shared `backups\uploads` picture folder (copy only new files). Waits for A1. | P1 | 2 | Sonnet 5.5 |
 | F5 | Check that schema versioning exists (adding, renaming, removing fields on existing entities); the plan requires it from phase 1. Build it if missing. | P2 | 4 | Fable 5.2 |
-| F6 | Security review of the visibility filter before the first real players join the live server: every endpoint, search, links, images, imports. | P2 | 4 | Fable 5.2 |
-| F7 | Delete picture files that no field holds any more (replaced or removed pictures stay in `server\data\uploads`; they are no longer served). Keep the ones an undo in the change log could bring back, or delete only after a set time. | P4 | 2 | Sonnet 5.5 |
+| F6 | Security review of the visibility filter before the first real players join the live server: every endpoint, search, links, images, imports, the ZIP export and import routes (`/api/export`, `/api/import`). | P2 | 4 | Fable 5.2 |
+| F7 | Delete picture files that no field holds any more (replaced or removed pictures stay in `server\data\uploads`; they are no longer served). Keep the ones an undo in the change log could bring back, or delete only after a set time. The backup folder `backups\uploads` is never pruned either; decide whether it follows. | P4 | 2 | Sonnet 5.5 |
 
 ## C. Character sheet leftovers (phase 1)
 
@@ -69,8 +66,8 @@ Decisions are in `PLAN.md` section 10.7. Build in this order; each step leaves t
 
 | ID | Task | Priority | Complexity | Model |
 |---|---|---|---|---|
-| U2 | Character list page: All / PC / NPC / Aux tabs, tag filter, campaign filter, name search, cards (portrait, name, allegiance) with further card fields chosen by the DM for everyone; tab, tags, campaign and search remembered per viewer in their browser. Removes the folder list. The server part is done (U1): `entity.list` sends a `card` per character, `system.get` the chosen fields and the options, `system.setCardFields` stores the choice. | P2 | 3 | Opus 5.5 (medium) |
-| U3 | Focused character sheet: "← Characters" instead of the site navigation, right-hand page menu (drop-down on a phone), a page address per page, search with match counts per page, feature panel split into class / subclass / hero, first versions of Home and Preview, DM controls under "Sheet settings"; the gallery screen in place of the small one added to the old sheet in U1; rewrite the browser tests of the sheet. Pages and their "shows" lists arrive in the schema of each character (U1). | P2 | 4 | Opus 5.5 (medium) |
+| U3b | Focused character sheet, step 2 (`PLAN.md` 10.7, decision 16): first versions of Home and Preview (today they list their "shows" fields in one plain box; Home shows empty ability rows as "–"), the gallery screen in place of the small one added to the old sheet in U1, the compact header on every page with the main portrait in its brass frame and a d20 divider (decision 14). Search counts per page were moved into step 1. | P2 | 3 | Opus 5.5 (medium) |
+| U3c | Owner check of U3 step 1: open a character from the list on PC and phone; switch pages with the right-hand menu and the phone drop-down; reload and Back; Edit on one page, then another page opens in Read; search and the counts in the menu; "Sheet settings" at the bottom of Basic Info; log in as a player and open another player's character (Preview only). | P2 | 1 | Owner |
 | U4 | Player Requests: `requests` and `request_messages` tables, endpoints, Open and Archive folders, count in the navigation, part of the JSON export and import, server and browser tests. | P2 | 3 | Fable 5.2 |
 | U5 | Preview page by the owner's design: which fields other players receive beyond the first version, and how the page looks. The server rule itself is built in U1. Needs the owner's design. | P3 | 2 | Fable 5.2 |
 | U6 | Home page of the sheet: the owner's design of the summary. | P3 | 2 | Opus 5.5 (medium) |
@@ -81,16 +78,15 @@ Decisions are in `PLAN.md` section 10.7. Build in this order; each step leaves t
 
 ## V. Look and theme: Slate & Brass (PLAN.md section 11)
 
-Build in this order. V1 and V2 are done; V1 shipped alone so the owner can compare light and dark on today's look.
+Build in this order. V1, V2 and V3 are done; V1 shipped alone so the owner can compare light and dark on today's look.
 
 | ID | Task | Priority | Complexity | Model |
 |---|---|---|---|---|
-| V3 | Section icons on the tabs (labels drop on phones), d20 logo mark and d20 empty lists, login page with stone texture and framed card. | P3 | 2 | Sonnet 5.5 |
 | V4 | DM-only style: tint, dashed outline and "who can see it" chip on entities, groups, fields and list rows, for the DM only; send the visibility setting with list rows to the DM if needed; browser test for DM and player. Also moves the amber "DM only" eye button onto the new style. | P3 | 3 | Fable 5.2 |
-| V6 | Owner check after V2 and V9: PC and phone, light and dark, Russian reading on; read a spell, a feature and a character in Read mode, then change something in Edit. | P2 | 1 | Owner |
-| V7 | Login page artwork carousel: the DM uploads pictures and marks them for the login page, each with a title; they change every few seconds. They are the only pictures served without a login, kept apart from other uploads; browser test that other uploads stay closed. Waits for V3. | P3 | 3 | Fable 5.2 |
+| V6 | Owner check after V2, V9 and V3: PC and phone, light and dark, Russian reading on; read a spell, a feature and a character in Read mode, then change something in Edit; look at the tab icons on a phone and at the login page. | P2 | 1 | Owner |
+| V7 | Login page artwork carousel: the DM uploads pictures and marks them for the login page, each with a title; they change every few seconds. They are the only pictures served without a login, kept apart from other uploads; browser test that other uploads stay closed. | P3 | 3 | Fable 5.2 |
 
-Also in other tasks: portrait frames on cards (U2) and in the sheet header (U3), d20 dividers on the sheet (U3), spell School field (S1) and school colour dots (S2).
+Also in other tasks: portrait frames in the sheet header (U3b; the cards got theirs in U2), d20 dividers on the sheet (U3b), spell School field (S1) and school colour dots (S2).
 
 ## I. Items and inventory (phase 2)
 
@@ -108,7 +104,7 @@ Also in other tasks: portrait frames on cards (U2) and in the sheet header (U3),
 | ID | Task | Priority | Complexity | Model |
 |---|---|---|---|---|
 | S1 | Generate the Spell schema (25 properties) from the Obsidian `_Schema\Spell.md` note; do the same for Component and Quality. | P2 | 3 | Opus 5.5 (medium) |
-| S2 | Spell table: sortable columns, filters on every structured field, text search, saved views taken from `Spell Compendium.base`. | P2 | 3 | Opus 5.5 (medium) |
+| S2 | Spell table: filters on every structured field of S1, School and class lists as columns and folders, saved views taken from `Spell Compendium.base`. Builds on S11. | P2 | 3 | Opus 5.5 (medium) |
 | S3 | Spell lists as entities (class lists, homebrew lists). | P3 | 2 | Sonnet 5.5 |
 | S4 | Known and memorized marks with the source on the character's spells; slot tracking on the sheet. | P2 | 3 | Opus 5.5 (medium) |
 | S5 | Fill the 12 spell pages that were imported by name only (Command, Hex, Misty Step…). | P3 | 1 | Haiku 5.5 |
@@ -117,6 +113,7 @@ Also in other tasks: portrait frames on cards (U2) and in the sheet header (U3),
 | S8 | Glossary terms recognised and highlighted inside long texts, definition on hover or tap, aliases for word forms. | P2 | 3 | Opus 5.5 (medium) |
 | S9 | Bulk translation: export untranslated and outdated texts with the Glossary to a file, import the translated file back. | P2 | 3 | Opus 5.5 (medium) |
 | S10 | Translate the exported texts into Russian in a session (repeats after each export). | P3 | 2 | Sonnet 5.5 |
+| S11 | Spells section like Features (PLAN.md section 12): the feature browser becomes one shared library browser set up per section; Spells get table and folders on the left (columns Name, Circle, Casting, Characters; filters Circle, Casting, Character; folders by circle), the spell on the right; Features unchanged; browser test. | P2 | 3 | Opus 5.5 (medium) |
 
 ## W. Wiki and campaign (phase 4)
 
@@ -169,6 +166,12 @@ Not tasks until the owner asks:
 
 | ID | Task | Finished |
 |---|---|---|
+| U3a | Focused character sheet, step 1: "← Characters" in place of the site navigation inside a sheet; right-hand page menu (a drop-down on a phone) with only the pages the viewer has (another player: Preview only); an address per page (`/s/<system>/characters/<id>/<page>`), unknown or hidden pages fall back to Home or Preview; every page opens in Read; features split onto Class / Subclass / Hero Abilities, items on Inventory, spells on Spells Known, each "+ Add" offering only what belongs on that page; "Sheet settings" (who can see it, owner, kind, campaigns, modules, custom sections, history, delete) at the bottom of Basic Info; search counts per page in the menu; a new character opens on Basic Info; browser tests rewritten, new `e2e/u3-sheet-pages.spec.ts`. | 2026-11-18 |
+| F3 | Pictures in the backup and the export: `npm run backup` also copies new pictures into one shared `backups\uploads` folder (never pruned, so every database copy finds its pictures); the Data tab exports a ZIP (`export.json` plus `pictures/`) with every picture of the System, replaced ones included for undo, or a plain JSON file with "Include pictures" unticked; a ZIP import gives pictures new ids and writes them to disk, old JSON files still import; routes in `server/src/archive.ts`; 10 server tests in `server/test/archive.test.ts`, browser test `e2e/x-export-pictures.spec.ts`. | 2026-11-18 |
+| F4 | Commit the work to git: done by the owner; only fresh changes are uncommitted. From now on a commit is offered after each Summary update (`CLAUDE.md`, Rule 3). | 2026-11-18 |
+| A10 | Stone-texture login page: fine for now (`PLAN.md` section 11.7, question 3). | 2026-11-18 |
+| V3 | Section icons on the nine tabs, from the Lucide icon package `lucide-react` (`web/src/components/Icons.tsx`); on a phone the labels drop, the icons stay on one line and the label is the tooltip; d20 beside the System name and above empty lists (section lists and the character list); login, setup and invite pages on a dark stone texture, same in both modes, with a brass-framed card and the d20 logo; browser test `e2e/v3-look.spec.ts`. | 2026-11-18 |
+| U2 | Character list page: full-width cards (main portrait in a brass frame or the first letter, bilingual name, allegiance, the DM's card fields), All / PC / NPC / Aux tabs with counts that follow the other filters, tag chips (all ticked tags must match), campaign filter, name search, "Reset filters"; PC, then NPC, then Aux, alphabetical inside each; tab, tags, campaign and search kept per viewer in the browser; "Card fields…" panel for the DM on the list; folders removed; a card opens the sheet on its own page with "← Characters"; browser test `e2e/u2-character-list.spec.ts` (DM, owner, other player, other campaign). | 2026-11-18 |
 | U1 | Server side of the character UX rework: 16 sheet pages in the schema, groups filed onto them with unchanged field ids, Background, Tags (DM edits), Allegiance label, Progression History, Attacks and Combat modifiers, portrait gallery with a main portrait, card field choice on the System, card values in the character list, everything except the Preview closed to other players (sheet, links, class details, "who has this"); a picture is served only while a visible field holds it; 18 new server tests in `server/test/character-ux.test.ts`. | 2026-11-18 |
 | A8 | Answer the 9 open questions on the character UX rework (PLAN.md section 10.7). | 2026-11-17 |
 | A11 | Choose the font for Russian headings: Spectral SC (PLAN.md section 11.3). | 2026-11-18 |

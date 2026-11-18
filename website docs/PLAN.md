@@ -221,7 +221,7 @@ System             one rule set; the only thing the user switches between
 
 Not built from this order: PDF upload inside the app (the owner chose conversion in a session); class table values are shown, not yet fed into sheet fields such as spell slots; the free-text Class field on Identity is still there next to the class list.
 
-Phase 1 is complete. Open after the import: characters have no owners yet (the export has no player names; the owner sets them when players have accounts); items that belong to one character are DM-only until then; 12 English item names in `English names - added at import.md` wait for approval; the names of bags inside inventories were not in the export. Not built and not in phase 1: glossary terms highlighted inside long texts and the bulk translation export (both phase 3). Uploaded pictures are not part of the JSON export or the backup command yet.
+Phase 1 is complete. Open after the import: characters have no owners yet (the export has no player names; the owner sets them when players have accounts); items that belong to one character are DM-only until then; 12 English item names in `English names - added at import.md` wait for approval; the names of bags inside inventories were not in the export. Not built and not in phase 1: glossary terms highlighted inside long texts and the bulk translation export (both phase 3). Uploaded pictures were not part of the JSON export or the backup command; added 2026-11-18 (task F3, see the Backups row in section 8).
 
 Phases 0 and 1 carry most of the technical risk. Everything after them reuses the same entity, link and visibility code.
 
@@ -282,14 +282,14 @@ One language, TypeScript, on the server and in the browser, because the owner do
 | Live updates | WebSocket in the same server (phase 5) | Sends change-log entries to open sheets. The future VTT uses the same channel. |
 | Login | Own invite links and sessions, argon2 password hashing | No third party and no email service. |
 | Hosting | VPS with Docker and Caddy | Caddy provides HTTPS automatically. Needs a domain name. |
-| Backups | Nightly copy of the database file to off-server storage, plus the JSON export | Two independent ways back. |
+| Backups | Nightly copy of the database file to off-server storage, plus the export. Pictures (decided and built 2026-11-18, F3): the backup command copies each new picture once into one shared `backups/uploads` folder, never pruned, so every database copy finds its pictures. The export is a ZIP with `export.json` and every picture of the System, replaced ones included so an undo still finds them; a "without pictures" option gives the plain JSON file. Import gives pictures new ids. | Two independent ways back. |
 | Tests | Vitest for the server, Playwright for the browser | The visibility tests log in as a player and check that hidden data never arrives. |
 
 **Alternative considered:** PostgreSQL instead of SQLite. It handles many simultaneous writers better, but adds a second service to run and back up. Not needed at this size; moving later is possible because all database access goes through Drizzle.
 
-## 10. Character UX rework and Player Requests (decided 2026-11-17; server step U1 built 2026-11-18)
+## 10. Character UX rework and Player Requests (decided 2026-11-17; U1, U2 and step 1 of U3 built 2026-11-18)
 
-Ordered by the owner on 2026-11-17. The server step (U1) is built; the screens (U2, U3) and Player Requests (U4) are not. The owner's answers to the open questions are in 10.7; the tasks are U1 to U10 in `TODOs.md`.
+Ordered by the owner on 2026-11-17. The server step (U1), the character list (U2) and step 1 of the focused sheet (U3: page menu, page addresses, feature split, Sheet settings, search counts per page) are built; step 2 of U3 (Home, Preview, gallery screen, header frame) and Player Requests (U4) are not. The owner's answers to the open questions are in 10.7; the tasks are U1 to U10 in `TODOs.md`.
 It concerns characters only for now. Other sections (Features, Spells, Items…) keep the current list-beside-editor layout and may follow later.
 
 ### 10.1 Two levels: list, then sheet
@@ -384,12 +384,17 @@ The DM's sheet controls (owner, who can see the sheet, sheet modules, history, d
 9. **Placement, for now:** Proficiencies on Stats; Talent tree, Class stats, Sorcery and Masks on Class Abilities; custom sections on Hero Abilities; Supplies on Inventory.
 10. **Combat page (2026-11-18):** it stores only its own stats; AC, HP, hit dice and initiative stay in Secondary Stats and are shown on Combat as the same values, not as copies.
 11. **Owner and DM only (2026-11-18):** every page except the Preview is seen by the character's owner and the DM only.
+12. **List order (2026-11-18):** PC first, then NPC, then Aux; alphabetical by name inside each. On the All tab each kind has a small heading. The tab counts follow the campaign, tag and search filters. The DM picks the card fields with a "Card fields…" button on the list page.
+13. **Edit across sheet pages (2026-11-18):** every page of the sheet opens in Read mode, also when Edit was on for the page before it. This narrows 11.8 for the character sheet.
+14. **Sheet header (2026-11-18):** a compact header above every page: the main portrait in its brass frame, the name, the quiet kind line, and a d20 divider under it. Home shows its larger summary below the header.
+15. **First page (2026-11-18):** the sheet opens on Home for the owner and the DM, and on Preview for another player (the only page they receive).
+16. **U3 in two steps (2026-11-18):** step 1: full focus with the "← Characters" button, the right-hand menu (a drop-down on a phone), an address per page, the feature panel split into class / subclass / hero, "Sheet settings" at the bottom of Basic Info, the rewritten browser tests. Step 2: search with match counts per page, first versions of Home and Preview, the gallery screen, the header frame and the d20 dividers. The owner checks the app after each step.
 
 ### 10.8 Model
 
 Per the rating rules in `TODOs.md`: steps 1 and 4 touch the schema model and storage and go to **Fable 5.2**; steps 2 and 3 are screen work on a settled server and go to **Opus 5.5 (medium)**. U5 changes visibility and goes to Fable 5.2.
 
-## 11. Look and theme: Slate & Brass (decided 2026-11-17, not built)
+## 11. Look and theme: Slate & Brass (decided 2026-11-17; switch, restyle, Read / Edit modes and step 3 built 2026-11-18)
 
 The owner chose the **Slate & Brass** direction from the "AnyBrew Look Book" page (https://claude.ai/artifact/1i94FWp71kWs5kvnB3wQur), with every small touch from that page except a separate colour per System. The site also gets a light / dark switch so both modes can be compared.
 
@@ -441,7 +446,7 @@ Danger (red), success (green), the search highlight (yellow) and the "outdated" 
 | **d20 mark** | A thin-line d20 drawn as our own small SVG. Used as the logo mark next to the System name, as a divider between the main parts of a sheet, and in empty lists ("No items yet"). | Logo and empty lists with the restyle; sheet dividers with the sheet rework (U3). |
 | **DM-only style** | For the DM, anything players cannot see (an entity, a group, a field, a list row) gets a faint brass tint, a dashed outline and a small chip saying who can see it: "DM only", or the names from the visibility setting ("Anna, Party 2"). Players never see the chip, and the hidden data still never reaches their browser. | With the restyle. Lists may need the visibility setting sent with each row (to the DM only). |
 | **Rarity colours** | A coloured mark beside item names: Common grey, Uncommon green, Rare blue, Very rare purple, Legendary orange-gold, Artifact red. | **On hold (owner, 2026-11-17).** Rarity is not the same as the Scarcity column in I2. Nothing is built until the owner returns to it. |
-| **Portrait frames** | Portraits get an engraved square frame: a thin brass line set just inside the edge. A character without a portrait shows the first letter of their name in Marcellus SC in the same frame. | Sheet header now; the character cards in U2. |
+| **Portrait frames** | Portraits get an engraved square frame: a thin brass line set just inside the edge. A character without a portrait shows the first letter of their name in Marcellus SC in the same frame. | Character cards built in U2; sheet header in U3. |
 | **Login page** | The only page with a full background: a dark slate stone texture drawn in CSS with a small brass-framed card on it. **Later: an artwork carousel** (owner's wish): the DM's chosen pictures fill the background and change every few seconds, with a title on each. The login page is open to anyone with the address, so carousel pictures are marked for it on purpose, stored apart from other uploads and served without a login; no other upload becomes public. | Stone texture with the restyle (V3); carousel as its own task (V7). Both are shown on the look book page ("Login page"). |
 | **Section icons** | One thin-line icon per tab: Characters, Features, Spells, Items, Rules, Glossary, People, Data (from the Lucide icon set, free licence). On a phone the tab labels drop and the icons stay, with the label as a tooltip. | With the restyle. |
 | **Spell school colours** | A small coloured dot per school of magic in spell lists and on the spell page. | Spells have no School field yet. It comes with the 25 spell properties (S1) and is shown in the spell table (S2). The colours are chosen in this step. |
@@ -461,13 +466,15 @@ Danger (red), success (green), the search highlight (yellow) and the "outdated" 
 | Inside U2 / U3 | Portrait frames on cards, d20 dividers on the sheet. | U2, U3 |
 | Inside S1 / S2 | Spell school field and dots. | S1, S2 |
 
+**Step 3 (V3), built 2026-11-18.** The section icons come from the Lucide icon package (`lucide-react`, free licence); the d20 is our own drawing: Characters (people), Features (medal), Spells (wand), Items (backpack), Rules (scroll), Glossary (open book), Notes (notebook), People (contact card), Data (database). Below the tablet width the labels drop; the label stays the link's name and its tooltip, and the nine icons fit on one line of a 390 px phone. The d20 stands beside the System name and above the empty-list message of the section lists and the character list; small lists inside a page (links, fields) stay plain text. The login, first-setup and invite pages share the stone texture: one large drawing over the whole page (a repeated tile showed seams), dark in both modes, with the card in the page's mode.
+
 **Overlap with the character rework (section 10).** U2 and U3 rebuild the character list and sheet. The restyle comes first, because the named colours and fonts then carry into the rebuilt screens for free. Touches that belong only to the list and the sheet are built inside U2 and U3 so they are not made twice.
 
 ### 11.7 Open questions (2026-11-17)
 
 1. **Rarity or Scarcity?** Answered 2026-11-17: not the same thing. Rarity colours are on hold; nothing is built for now.
 2. **Cyrillic headings.** Answered 2026-11-18: Spectral SC (option G).
-3. **Login picture.** Answered in part 2026-11-17: the owner wants an artwork carousel later (V7). Open: is the stone texture right for now? The owner checks it on the look book page.
+3. **Login picture.** Answered in part 2026-11-17: the owner wants an artwork carousel later (V7). Answered 2026-11-18: the stone texture is fine for now.
 
 ### 11.8 Read and Edit modes (decided and built 2026-11-18)
 
@@ -477,3 +484,16 @@ Every entity page (characters, features, spells, items, rules, glossary, notes) 
 - An **Edit** button at the end of the search bar switches over; it becomes **Done** to go back. It shows only to people who may change something on the page.
 - Counters stay usable in Read mode: tick boxes, pips, pools and talent picks, so a sheet can be played without switching to Edit.
 - Every page opens in Read. A page just created opens in Edit. Edit stays on until another page is opened.
+
+## 12. Spells section like the Features section (decided 2026-11-18, not built)
+
+The owner wants the Spells section to work the same way as the Features section: the list of spells on the left as a **table or folders**, the full spell on the right (in Read mode by default, section 11.8).
+
+- **One browser for both.** The feature browser (search, filters, sortable table, folder view, "Table / Folders" switch remembered per browser) becomes one shared library browser, set up per section: which columns, which filters, how folders are grouped. Features keep exactly what they have today.
+- **Spells, with today's fields:**
+  - Table columns: Name, Circle (0 shown as "Cantrip"), Casting, Characters (who has the spell).
+  - Filters: Circle, Casting, Character; text search over name, Russian name, tags and summary.
+  - Folders: by circle ("Cantrips", "1st circle", "2nd circle"…), spells sorted by name inside.
+  - The wide left column of the Features section.
+- **When the 25 spell properties arrive (S1),** School and the class lists are added as columns, filters and a second way to file folders (by school). The spell table task (S2) then adds filters on the other properties and the saved views from `Spell Compendium.base`, on top of this browser.
+- **Later, if the owner asks:** the same browser for Items (weight, scarcity, price, type) and Rules.

@@ -1,14 +1,18 @@
 import { TRPCError } from '@trpc/server';
 import { and, eq, inArray, isNull } from 'drizzle-orm';
 import { nanoid } from 'nanoid';
+import fs from 'node:fs';
+import path from 'node:path';
 import { z } from 'zod';
 import { destroyUserSessions, hashPassword, newToken } from '../auth';
 import type { DB } from '../db';
+import { IMAGE_TYPES } from '../images';
 import {
   campaignMembers,
   campaigns,
   changes,
   entities,
+  files,
   invites,
   links,
   members,
@@ -366,7 +370,7 @@ function loadParties(db: DB, sysId: string) {
 
 const audience = z.object({ all: z.boolean(), players: z.array(z.string()), parties: z.array(z.string()) });
 
-const exportSchema = z.object({
+export const exportSchema = z.object({
   format: z.literal(EXPORT_FORMAT),
   version: z.literal(EXPORT_VERSION),
   exportedAt: z.string(),
@@ -416,6 +420,21 @@ const exportSchema = z.object({
       }),
     )
     .default([]),
+  // The list of uploaded pictures. Their bytes travel only in the ZIP export (see archive.ts);
+  // a plain JSON export lists them too, but its import has no bytes and leaves them out.
+  files: z
+    .array(
+      z.object({
+        id: z.string(),
+        entityId: z.string(),
+        fieldId: z.string(),
+        mime: z.string(),
+        size: z.number(),
+        createdBy: z.string(),
+        createdAt: z.number(),
+      }),
+    )
+    .default([]),
   changes: z.array(
     z.object({
       entityId: z.string(),
@@ -453,6 +472,7 @@ export function buildExport(db: DB, id: string): SystemExport {
     translations: entityRows.length
       ? db.select().from(translations).where(inArray(translations.entityId, entityRows.map((e) => e.id))).all()
       : [],
+    files: db.select().from(files).where(eq(files.systemId, id)).orderBy(files.createdAt).all().map(strip),
     changes: db
       .select()
       .from(changes)
@@ -467,20 +487,61 @@ export function buildExport(db: DB, id: string): SystemExport {
  * Imports into a brand-new system. Every system, campaign, party, entity and link id is replaced
  * with a fresh one across the whole document, so references inside values stay consistent
  * and nothing collides with the system the export came from.
+ *
+ * Pictures come in only when their bytes are given (from a ZIP export): each is written to the
+ * uploads folder under its new id. A picture without bytes, or of a type we do not accept, is left
+ * out, and a field that held it shows an empty frame.
  */
-export function importSystem(db: DB, source: SystemExport, importerId: string): string {
+export function importSystem(
+  db: DB,
+  source: SystemExport,
+  importerId: string,
+  pictures?: { dir: string; bytes: Map<string, Uint8Array> },
+): string {
+  const picturesIn = source.files.filter((f) => IMAGE_TYPES[f.mime] && pictures?.bytes.has(f.id));
   const oldIds = [
     source.system.id,
     ...source.campaigns.map((c) => c.id),
     ...source.parties.map((p) => p.id),
     ...source.entities.map((e) => e.id),
     ...source.links.map((l) => l.id),
+    ...picturesIn.map((f) => f.id),
   ];
+  const newIds = new Map(oldIds.map((oldId) => [oldId, nanoid()]));
   let text = JSON.stringify(source);
-  for (const oldId of oldIds) text = text.split(JSON.stringify(oldId)).join(JSON.stringify(nanoid()));
+  for (const [oldId, newId] of newIds) text = text.split(JSON.stringify(oldId)).join(JSON.stringify(newId));
   const data = JSON.parse(text) as SystemExport;
   const newSystemId = data.system.id;
 
+  // The bytes are written first and taken away again if the database part fails.
+  const written: string[] = [];
+  const fileRows = picturesIn.map((f) => {
+    const id = newIds.get(f.id)!;
+    const bytes = pictures!.bytes.get(f.id)!;
+    const target = path.join(pictures!.dir, `${id}.${IMAGE_TYPES[f.mime]}`);
+    fs.mkdirSync(pictures!.dir, { recursive: true });
+    fs.writeFileSync(target, bytes);
+    written.push(target);
+    return {
+      ...f,
+      id,
+      systemId: newSystemId,
+      entityId: newIds.get(f.entityId) ?? f.entityId,
+      size: bytes.length,
+    };
+  });
+
+  try {
+    insertImport(db, data, importerId, fileRows);
+  } catch (e) {
+    for (const f of written) fs.rmSync(f, { force: true });
+    throw e;
+  }
+  return newSystemId;
+}
+
+function insertImport(db: DB, data: SystemExport, importerId: string, fileRows: (typeof files.$inferInsert)[]) {
+  const newSystemId = data.system.id;
   db.transaction((tx) => {
     const knownUsers = new Set(tx.select({ id: users.id }).from(users).all().map((u) => u.id));
     const nameTaken = tx.select({ id: systems.id }).from(systems).where(eq(systems.name, data.system.name)).get();
@@ -518,6 +579,6 @@ export function importSystem(db: DB, source: SystemExport, importerId: string): 
       tx.insert(changes)
         .values({ ...c, target: c.target as (typeof changes.$inferInsert)['target'], systemId: newSystemId })
         .run();
+    for (const f of fileRows) tx.insert(files).values(f).run();
   });
-  return newSystemId;
 }
